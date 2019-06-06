@@ -28,6 +28,7 @@ dateEnd <- "2018-07-01"
 #List of DP numbers by eddy4R DP names
 listDpNum <- c("TBOT" = "DP1.00003.001", "PRECTmms" = "DP1.00006.001", "WIND" = "DP1.00001.001", "PSRF" = "DP1.00004.001", "RH" = "DP1.00098.001", "FLDS" = "DP1.00023.001", "FSDS" = "DP1.00023.001")
 
+varDp <- c("TBOT" = "tempTripleMean", "PRECTmms" = "secPrecipBulk", "WIND" = "windSpeedMean.000.050", "PSRF" = "staPresMean", "RH" = "RHMean", "FLDS" = "inLWMean", "FSDS" = "inSWMean")
 #Year and month of interest
 
 #varMetaData <- c("lat" = "LatTow", "lon" = "LonTow", "ZBOT" = "DistZaxsTow" )
@@ -38,4 +39,8 @@ listDpNum <- c("TBOT" = "DP1.00003.001", "PRECTmms" = "DP1.00006.001", "WIND" = 
 #neonUtilities::getPackage(site_code = site, package = pack, year_month =  )
 
 ##Grab data for data products using Noble package
-data <- try(expr = Noble::pull.date(site = Site, dpID = listDpNum[[1]], bgn.date = dateBgn, end.date = dateEnd, package = "basic", time.agr = TimeAgr), silent = TRUE)
+data <- lapply(listDpNum, function(x){
+  try(expr = Noble::pull.date(site = Site, dpID = x, bgn.date = dateBgn, end.date = dateEnd, package = Pack, time.agr = TimeAgr), silent = TRUE)
+  })
+
+
