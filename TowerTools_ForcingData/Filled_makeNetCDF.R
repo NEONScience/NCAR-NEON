@@ -54,7 +54,7 @@ lon     <- ncdim_def("lon","degrees_east", as.double(LON), create_dimvar=TRUE)
 
   for (y in 1:(nyear)) {
     #  Data.ann <- Data.F[Data.F$Year==year[y], ]
-    if(year[y]==2008 || year[y]==2012) {
+    if(year[y]==2008 || year[y]==2012 || year[y]==2016 || year[y]==2020) {
       nsteps <- leap_steps
     } else {
       nsteps <- regu_steps
