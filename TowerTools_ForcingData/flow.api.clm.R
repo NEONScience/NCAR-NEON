@@ -24,6 +24,13 @@ dateBgn <- "2018-06-01"
 #End date for date grabbing
 dateEnd <- "2018-07-01"
 
+#Define site info
+siteInfo <- Noble::tis_site_config
+siteInfo <- siteInfo[siteInfo$SiteID == Site,]
+
+#Grab latitude and longitude from site metadata
+lat <- siteInfo$Latitude
+lon <- siteInfo$Longitude
 
 #List of DP numbers by eddy4R DP names
 listDpNum <- c("TBOT" = "DP1.00003.001", "PRECTmms" = "DP1.00006.001", "WIND" = "DP1.00001.001", "PSRF" = "DP1.00004.001", "RH" = "DP1.00098.001", "FLDS" = "DP1.00023.001", "FSDS" = "DP1.00023.001")
