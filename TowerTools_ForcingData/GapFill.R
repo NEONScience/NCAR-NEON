@@ -7,11 +7,13 @@
 #  help('sEddyProc.example')
 
 
+  #setwd("~/eddy/data/CLM")
+  
   #+++ Load data with one header and one unit row from (tab-delimited) text file
 
 #  Dir.s <- paste(system.file(package='REddyProc'), 'examples', sep='/')
-#  EddyData.F <- fLoadTXTIntoDataframe('Tvan08-13_new_MST.txt')
-  EddyData.F <- fLoadTXTIntoDataframe('Tvan08-14_new_MST.txt')
+ EddyData.F <- fLoadTXTIntoDataframe('Tvan08-13_new_UTC.txt')
+ # EddyData.F <- fLoadTXTIntoDataframe('Tvan08-14_new_MST.txt')
   
   # calcculate Rh and VPD from rho_v data
   EddyData.F$ea <- EddyData.F$rho_v_MDS*8.3143*(EddyData.F$Tair+273.15)/(18.02*1000)*10      	#hPa
@@ -43,7 +45,7 @@
   EddyProc.C$sPlotDiurnalCycle('Tair')
   EddyProc.C$sPlotDiurnalCycle('NEE')
   #+++ Plot individual months/years to screen (of current R graphics device)
-  years <- seq(2008,2014,1)
+  years <- seq(2008,2013,1)
   nyears <- length(years)
   for (i in 1:nyears) {  
     EddyProc.C$sPlotHHFluxesY('NEE', Year.i=years[i])
@@ -91,5 +93,5 @@
   FilledEddyData.F <- EddyProc.C$sExportResults()
   #+++ Save results into (tab-delimited) text file in directory \out
   CombinedData.F <- cbind(EddyData.F, FilledEddyData.F)
-  fWriteDataframeToFile(CombinedData.F, 'NR-Tvan-Results_2008-14_MST.txt', 'out')
+  fWriteDataframeToFile(CombinedData.F, 'NR-Tvan-Results_2008-13_MST.txt', 'out')
   
