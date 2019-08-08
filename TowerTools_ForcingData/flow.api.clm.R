@@ -19,10 +19,10 @@ Pack <- "basic"
 #Time averaging period
 TimeAgr <- 30
 #Beginning date for data grabbing
-dateBgn <- "2018-03-01"
+dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2018-07-01"
+dateEnd <- "2018-12-31"
 
 
 #The version data for the FP standard conversion processing
@@ -55,6 +55,7 @@ siteInfo <- siteInfo[siteInfo$SiteID == Site,]
 #Grab latitude and longitude from site metadata
 latSite <- siteInfo$Latitude
 lonSite <- siteInfo$Longitude
+distTowSite <- eddy4R.base::def.unit.conv(siteInfo$Tower.Height..ft., unitFrom = "ft", unitTo = "m")
 
 #DP number
 idDpFlux <- 'DP4.00200.001'
@@ -101,8 +102,8 @@ LvlTowr <- gsub(x = LvlTowr, pattern = "_30m", replacement = "")
 #Subset to the Ameriflux variables to deliver
 dataListFlux <- lapply(names(dataList), function(x) {
   data.frame(
-   # "TIMESTAMP_START" = as.POSIXlt(dataList[[x]][[Site]]$dp04$data$fluxCo2$turb$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
-    "TIMESTAMP" = as.POSIXlt(dataList[[x]][[Site]]$dp04$data$fluxCo2$turb$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
+    "TIMESTAMP_START" = as.POSIXlt(dataList[[x]][[Site]]$dp04$data$fluxCo2$turb$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
+    "TIMESTAMP_END" = as.POSIXlt(dataList[[x]][[Site]]$dp04$data$fluxCo2$turb$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
     "NEE"= dataList[[x]][[Site]]$dp04$data$fluxCo2$nsae$flux,
     "LE" = dataList[[x]][[Site]]$dp04$data$fluxH2o$turb$flux,
     "Ustar" = dataList[[x]][[Site]]$dp04$data$fluxMome$turb$veloFric,
@@ -122,20 +123,22 @@ names(dataListFlux) <- names(dataList)
 #Combine the monthly data into a single dataframe
 dataDfFlux <- do.call(rbind.data.frame,dataListFlux)
 
-#Round up the timestamp for end of periods
-dataDfFlux$TIMESTAMP <- lubridate::round_date(dataDfFlux$TIMESTAMP, unit = "minute")
+
 ###################################################################################
 #Time regularization if needed
 # Regularize timeseries to 30 minutes in case missing data after CI processing
-# timeRglr <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataDfFlux$TIMESTAMP_START), dataMeas = dataDfFlux, BgnRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_START[1]), EndRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_END[length(dataDfFlux$TIMESTAMP_END)]), TzRglr = "UTC", FreqRglr = 1/(60*30))
+timeRglr <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataDfFlux$TIMESTAMP_START), dataMeas = dataDfFlux, BgnRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_START[1]), EndRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_END[length(dataDfFlux$TIMESTAMP_END)]), TzRglr = "UTC", FreqRglr = 1/(60*30))
 # 
 # #Reassign data to data.frame
-# dataDfFlux <- timeRglr$dataRglr
+dataDfFlux <- timeRglr$dataRglr
 # 
 # 
 # #Format timestamps
-# dataDfFlux$TIMESTAMP_START <- strftime(timeRglr$timeRglr , format = "%Y%m%d%H%M")
-# dataDfFlux$TIMESTAMP_END <- strftime(timeRglr$timeRglr+ lubridate::minutes(30), format = "%Y%m%d%H%M")
+dataDfFlux$TIMESTAMP_START <- NULL
+dataDfFlux$TIMESTAMP_END <- NULL
+dataDfFlux$TIMESTAMP <- timeRglr$timeRglr+ lubridate::minutes(30)
+ # dataDfFlux$TIMESTAMP_START <- strftime(timeRglr$timeRglr , format = "%Y%m%d%H%M")
+ # dataDfFlux$TIMESTAMP_END <- strftime(timeRglr$timeRglr+ lubridate::minutes(30), format = "%Y%m%d%H%M")
 ###################################################################################
 
 #Remove flagging variables from outpu
@@ -275,28 +278,61 @@ FilledEddyData.F <- EddyProc.C$sExportResults()
 dataClm <- FilledEddyData.F[,grep(pattern = "_f$", x = names(FilledEddyData.F))]
 
 #Grab the POSIX timestamp
-dataClm$time <- EddyDataWithPosix.F$DateTime
+dataClm$DateTime <- EddyDataWithPosix.F$DateTime - lubridate::minutes(30) # putting back to time at the beginning of the measurement period
 
-names(dataClm) <- c("NEE", "LE", "H", "Ustar", "TBOT", "VPD", "RH", "WIND", "PRECTmms", "PSRF",  "FLDS", "FSDS", "time")
+names(dataClm) <- c("NEE", "LE", "H", "Ustar", "TBOT", "VPD", "RH", "WIND", "PRECTmms", "PSRF",  "FLDS", "FSDS", "DateTime")
 
+#Create tower height measurement field
+dataClm$ZBOT <- rep(distTowSite,nrow(dataClm))
 
 
 ##############################################################################
 #Write output to CLM
 ##############################################################################
-#NetCDF output filename
-fileOutNcdf <- sub(pattern = ".txt", replacement = ".nc", fileOut)
+
+#Define the timesteps for data output
+year       <- c(2018) 
+mon        <- c("01","02","03","04","05","06","07","08","09","10","11","12") 
+regu_days  <- c(31,28,31,30,31,30,31,31,30,31,30,31)
+leap_days  <- c(31,29,31,30,31,30,31,31,30,31,30,31)
+regu_steps <- regu_days * 48
+leap_steps <- leap_days * 48
+nyear <- length(year)
 
 #Define missing value fill
 mv <- -9999.  
+startStep <- 1
+
+#Loop around years of data
+for (y in 1:(nyear)) {
+  #  y <- 1
+  if(year[y]==2008 || year[y]==2012) {
+    nsteps <- leap_steps
+  } else {
+    nsteps <- regu_steps
+  }
+
+  for (m in 1:12) {
+    timeStep <- seq(0,nsteps[m]-1,1)
+    time     <- timeStep/48
+    endStep  <- startStep + nsteps[m]-1
+    Data.mon <- dataClm[startStep:endStep, ]
+    print(paste(year[y],m,"Data date =",Data.mon$DateTime[1]))
+    names(Data.mon)
+  
+#NetCDF output filename
+fileOutNcdf <- paste(DirOut,"/",year[y],"-",mon[m],".nc", sep = "")
+  #sub(pattern = ".txt", replacement = ".nc", fileOut)
+
+
 
 # define the netcdf coordinate variables (name, units, type)
 lat  <- ncdf4::ncdim_def("lat","degrees_north", as.double(latSite), create_dimvar=TRUE)
 lon <- ncdf4::ncdim_def("lon","degrees_east", as.double(lonSite), create_dimvar=TRUE)
 
 #Variables to output to netCDF
-time <- ncdf4::ncdim_def("time", units=paste("days since",dataClm$time[1]),
-                     vals=as.double(dataClm$time),unlim=FALSE, create_dimvar=TRUE )
+time <- ncdf4::ncdim_def("time", paste("days since",Data.mon$DateTime[1]),
+                       vals=as.double(time),unlim=FALSE, create_dimvar=TRUE )
 LATIXY  <- ncdf4::ncvar_def("LATIXY", "degrees N", list(lat), mv,
                         longname="latitude", prec="double")
 LONGXY  <- ncdf4::ncvar_def("LONGXY", "degrees E", list(lon), mv,
@@ -325,16 +361,16 @@ ncnew <- ncdf4::nc_create(fileOutNcdf, list(LATIXY,LONGXY,FLDS,FSDS,PRECTmms,RH,
 # Write some values to this variable on disk.
  ncdf4::ncvar_put(ncnew, LATIXY, latSite)
  ncdf4::ncvar_put(ncnew, LONGXY, lonSite)
- ncdf4::ncvar_put(ncnew, FLDS, dataClm$FLDS)
- ncdf4::ncvar_put(ncnew, FSDS, dataClm$FSDS)
- ncdf4::ncvar_put(ncnew, RH,   dataClm$RH)
- ncdf4::ncvar_put(ncnew, PRECTmms, dataClm$PRECTmms)
- ncdf4::ncvar_put(ncnew, PSRF, dataClm$PSRF)
- ncdf4::ncvar_put(ncnew, TBOT, dataClm$TBOT)
- ncdf4::ncvar_put(ncnew, WIND, dataClm$WIND)
- ncdf4::ncvar_put(ncnew, ZBOT, dataClm$ZBOT)
+ ncdf4::ncvar_put(ncnew, FLDS, Data.mon$FLDS)
+ ncdf4::ncvar_put(ncnew, FSDS, Data.mon$FSDS)
+ ncdf4::ncvar_put(ncnew, RH,   Data.mon$RH)
+ ncdf4::ncvar_put(ncnew, PRECTmms, Data.mon$PRECTmms)
+ ncdf4::ncvar_put(ncnew, PSRF, Data.mon$PSRF)
+ ncdf4::ncvar_put(ncnew, TBOT, Data.mon$TBOT)
+ ncdf4::ncvar_put(ncnew, WIND, Data.mon$WIND)
+ ncdf4::ncvar_put(ncnew, ZBOT, Data.mon$ZBOT)
 #add attributes
-ncdf4::ncatt_put(ncnew, time,"calendar", "gregorian" ,prec=NA,verbose=FALSE,definemode=FALSE )
+#ncdf4::ncatt_put(ncnew, time,"calendar", "gregorian" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, FLDS,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, FSDS,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, RH  ,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
@@ -345,8 +381,16 @@ ncdf4::ncatt_put(ncnew, WIND,"mode","time-dependent" ,prec=NA,verbose=FALSE,defi
 ncdf4::ncatt_put(ncnew, ZBOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, 0, "created_on",date()       ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, 0, "created_by","David Durden",prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_from",fin        ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_with",file       ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, 0, "created_from",fileOut        ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALSE,definemode=FALSE )
 
 #Close Netcdf file connection
 ncdf4::nc_close(ncnew)
+#Add step
+startStep <- endStep + 1
+#Remove not needed variables
+remove(endStep, time, timeStep, fileOutNcdf, ncnew, Data.mon,
+       FLDS,FSDS,RH,PRECTmms,PSRF,TBOT,WIND,ZBOT)
+  } #End of monthloop
+
+} #End of year loop
