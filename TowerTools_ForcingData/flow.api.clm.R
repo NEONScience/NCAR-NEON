@@ -206,7 +206,7 @@ dataDf$Hour <- lubridate::hour(dataDf$TIMESTAMP) + lubridate::minute(dataDf$TIME
 dataDf$TIMESTAMP <- NULL
 
 #Vector of units for each variable
-unitDf <- c("Year" = "--", "DoY" = "--", "Hour" = "--", "NEE" = "umolm-2s-1", "LE" = "Wm-2", "H" = "Wm-2", "Ustar" = "ms-1", "WS_MDS" = "ms-1", "Pa_MDS" = "Pa", "Tair" = "degC", "PRECTmms_MDS" = "mms-1", "rH" = "%", "FLDS_MDS" = "Wm-2", "Rg" = "Wm-2")
+unitDf <- c("Year" = "--", "DoY" = "--", "Hour" = "--", "NEE" = "umolm-2s-1", "LE" = "Wm-2", "H" = "Wm-2", "Ustar" = "ms-1", "WS_MDS" = "ms-1", "Pa_MDS" = "kPa", "Tair" = "degC", "PRECTmms_MDS" = "mms-1", "rH" = "%", "FLDS_MDS" = "Wm-2", "Rg" = "Wm-2")
 
 #Set the output data column order based off of the units vector
 dataDf <- data.table::setcolorder(dataDf, names(unitDf))
@@ -281,6 +281,13 @@ dataClm <- FilledEddyData.F[,grep(pattern = "_f$", x = names(FilledEddyData.F))]
 dataClm$DateTime <- EddyDataWithPosix.F$DateTime - lubridate::minutes(30) # putting back to time at the beginning of the measurement period
 
 names(dataClm) <- c("NEE", "LE", "H", "Ustar", "TBOT", "VPD", "RH", "WIND", "PRECTmms", "PSRF",  "FLDS", "FSDS", "DateTime")
+
+#Convert degC to K for temperature
+dataClm$TBOT <- dataClm$TBOT + 273.15
+attributes(obj = dataClm$TBOT)$units <- "K"
+#Convert kPa to Pa for pressure
+dataClm$PSRF <- dataClm$PSRF * 1000.0
+attributes(obj = dataClm$PSRF)$units <- "Pa"
 
 #Create tower height measurement field
 dataClm$ZBOT <- rep(distTowSite,nrow(dataClm))
