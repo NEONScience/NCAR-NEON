@@ -13,16 +13,16 @@ lapply(packReq, function(x) {
 #Workflow parameters
 #############################################################
 #Which NEON site are we grabbing data from (4-letter ID)
-Site <- "HARV"
+Site <- "KONZ"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
 TimeAgr <- 30
 #Beginning date for data grabbing
-dateBgn <- "2018-01-01"
+dateBgn <- "2017-09-01"
 
 #End date for date grabbing
-dateEnd <- "2018-12-31"
+dateEnd <- "2019-03-31"
 
 
 #The version data for the FP standard conversion processing
@@ -165,7 +165,7 @@ LvlTowrMet <- gsub(pattern = "_", replacement = ".", x = LvlTowr)
 listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001")
 
 #names for individual variables of interest
-varDp <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = paste("RHMean","003.000", sep = "."), "FLDS_MDS" = paste("inLWMean",LvlTowrMet, sep = "."), "Rg" = paste("inSWMean",LvlTowrMet, sep = ".")) #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
+varDp <- c("PRECTmms_MDS" = "priPrecipBulk.900", "rH" = paste("RHMean","003.000", sep = "."), "FLDS_MDS" = paste("inLWMean",LvlTowrMet, sep = "."), "Rg" = paste("inSWMean",LvlTowrMet, sep = ".")) #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
 
 #Grab data for data products using neonUtilities
 #neonUtilities::getPackage(site_code = site, package = pack, year_month =  )
@@ -174,6 +174,9 @@ varDp <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = paste("RHMean","003.000", se
 dataMet <- lapply(listDpNum, function(x){
   try(expr = Noble::pull.date(site = Site, dpID = x, bgn.date = dateBgn - lubridate::minutes(1), end.date = dateEnd + lubridate::days(1), package = Pack, time.agr = TimeAgr), silent = TRUE)
   })
+
+#Check if primary precipitation exists at the site, if not change to secondary precip
+varDp["PRECTmms_MDS"] <- ifelse(test = any(grepl(pattern = varDp["PRECTmms_MDS"], x = names(dataMet[["PRECTmms_MDS"]]))), "priPrecipBulk.900", "secPrecipBulk")
 
 #Grab just the Met data of interest for the forcing data
 dataDfMet <- as.data.frame(lapply(seq_along(varDp), function(x){
