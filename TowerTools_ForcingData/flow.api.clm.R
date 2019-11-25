@@ -112,7 +112,7 @@ dataListFlux <- lapply(names(dataList), function(x) {
     "qfTurbH2oFinl" = dataList[[x]][[Site]]$dp01$qfqm$h2oTurb[[paste0(LvlTowr,"_30m")]]$rtioMoleDryH2o$qfFinl,
     "qfTurbCo2Finl" = dataList[[x]][[Site]]$dp01$qfqm$co2Turb[[paste0(LvlTowr,"_30m")]]$rtioMoleDryCo2$qfFinl,
     "WS_MDS" = dataList[[x]][[Site]]$dp01$data$soni[[paste0(LvlTowr,"_30m")]]$veloXaxsYaxsErth$mean,
-    "Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
+    #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
     "Tair" = dataList[[x]][[Site]]$dp01$data$soni[[paste0(LvlTowr,"_30m")]]$tempAir$mean
     , stringsAsFactors = FALSE)
 })
@@ -141,7 +141,12 @@ dataDfFlux$TIMESTAMP <- timeRglr$timeRglr+ lubridate::minutes(30)
  # dataDfFlux$TIMESTAMP_END <- strftime(timeRglr$timeRglr+ lubridate::minutes(30), format = "%Y%m%d%H%M")
 ###################################################################################
 
-#Remove flagging variables from outpu
+dataDfFlux$NEE[(which(dataDfFlux$qfTurbFlow == 1))] <- NaN
+dataDfFlux$LE[(which(dataDfFlux$qfTurbFlow == 1))] <- NaN
+#dataDfFlux$Pa_MDS[(which(dataDfFlux$qfTurbFlow == 1))] <- NaN
+
+
+#Remove flagging variables from output
 dataDfFlux$qfTurbCo2Finl <- NULL
 dataDfFlux$qfTurbH2oFinl <- NULL
 dataDfFlux$qfTurbFlow <- NULL
@@ -162,10 +167,10 @@ LvlTowrMet <- gsub(pattern = "_", replacement = ".", x = LvlTowr)
 
 
 #List of DP numbers by eddy4R DP names
-listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001")
+listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001")
 
 #names for individual variables of interest
-varDp <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = paste("RHMean","003.000", sep = "."), "FLDS_MDS" = paste("inLWMean",LvlTowrMet, sep = "."), "Rg" = paste("inSWMean",LvlTowrMet, sep = ".")) #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
+varDp <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = paste("RHMean","003.000", sep = "."), "FLDS_MDS" = paste("inLWMean",LvlTowrMet, sep = "."), "Rg" = paste("inSWMean",LvlTowrMet, sep = "."), "Pa_MDS" = "staPresMean") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
 
 #Grab data for data products using neonUtilities
 #neonUtilities::getPackage(site_code = site, package = pack, year_month =  )
@@ -174,6 +179,9 @@ varDp <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = paste("RHMean","003.000", se
 dataMet <- lapply(listDpNum, function(x){
   try(expr = Noble::pull.date(site = Site, dpID = x, bgn.date = dateBgn - lubridate::minutes(1), end.date = dateEnd + lubridate::days(1), package = Pack, time.agr = TimeAgr), silent = TRUE)
   })
+
+#Check if primary precipitation exists at the site, if not change to secondary precip
+varDp["PRECTmms_MDS"] <- ifelse(test = any(grepl(pattern = varDp["PRECTmms_MDS"], x = names(dataMet[["PRECTmms_MDS"]]))), "secPrecipBulk", "priPrecipBulk.900")
 
 #Grab just the Met data of interest for the forcing data
 dataDfMet <- as.data.frame(lapply(seq_along(varDp), function(x){
@@ -186,6 +194,11 @@ names(dataDfMet) <- names(varDp)
 
 #Calculate precip rate from bulk
 dataDfMet$PRECTmms_MDS <- dataDfMet$PRECTmms_MDS/1800 #1800 sec/0.5 hours
+
+#Calculate net radiation
+dataDfMet$radNet <-dataMet$Rg[[paste("inSWMean",LvlTowrMet, sep = ".")]] - dataMet$Rg[[paste("outSWMean",LvlTowrMet, sep = ".")]] + dataMet$Rg[[paste("inLWMean",LvlTowrMet, sep = ".")]] - dataMet$Rg[[paste("outLWMean",LvlTowrMet, sep = ".")]]
+
+
 
 ##############################################################################
 #Combine flux and met data
@@ -206,7 +219,7 @@ dataDf$Hour <- lubridate::hour(dataDf$TIMESTAMP) + lubridate::minute(dataDf$TIME
 dataDf$TIMESTAMP <- NULL
 
 #Vector of units for each variable
-unitDf <- c("Year" = "--", "DoY" = "--", "Hour" = "--", "NEE" = "umolm-2s-1", "LE" = "Wm-2", "H" = "Wm-2", "Ustar" = "ms-1", "WS_MDS" = "ms-1", "Pa_MDS" = "kPa", "Tair" = "degC", "PRECTmms_MDS" = "mms-1", "rH" = "%", "FLDS_MDS" = "Wm-2", "Rg" = "Wm-2")
+unitDf <- c("Year" = "--", "DoY" = "--", "Hour" = "--", "NEE" = "umolm-2s-1", "LE" = "Wm-2", "H" = "Wm-2", "Ustar" = "ms-1", "WS_MDS" = "ms-1", "Pa_MDS" = "kPa", "Tair" = "degC", "PRECTmms_MDS" = "mms-1", "rH" = "%", "FLDS_MDS" = "Wm-2", "Rg" = "Wm-2", "radNet" = "Wm-2")
 
 #Set the output data column order based off of the units vector
 dataDf <- data.table::setcolorder(dataDf, names(unitDf))
@@ -256,7 +269,10 @@ EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year.s='Year', Day
 
 #+++ Initalize R5 reference class sEddyProc for processing of eddy data
 #+++ with all variables needed for processing later
-EddyProc.C <- sEddyProc$new(Site, EddyDataWithPosix.F, c('NEE','Rg','Tair','VPD','rH','LE','H','Ustar','Pa_MDS', 'FLDS_MDS','WS_MDS', 'PRECTmms_MDS'))
+EddyProc.C <- sEddyProc$new(Site, EddyDataWithPosix.F, c('NEE','Rg','Tair','VPD','rH','LE','H','Ustar','Pa_MDS', 'FLDS_MDS','WS_MDS', 'PRECTmms_MDS', 'radNet'))
+
+#Set location information
+EddyProc.C$sSetLocationInfo(Lat_deg.n=latSite, Long_deg.n=lonSite, TimeZone_h.n=5)
 
 #+++ Fill gaps in variables with MDS gap filling algorithm (without prior ustar filtering)
 EddyProc.C$sMDSGapFill('NEE', FillAll.b=TRUE) #Fill all values to estimate flux uncertainties
@@ -271,6 +287,8 @@ EddyProc.C$sMDSGapFill('PRECTmms_MDS', FillAll.b=FALSE)
 EddyProc.C$sMDSGapFill('Pa_MDS', FillAll.b=FALSE) 
 EddyProc.C$sMDSGapFill('FLDS_MDS', FillAll.b=FALSE) 
 EddyProc.C$sMDSGapFill('Rg', FillAll.b=FALSE) 
+EddyProc.C$sMDSGapFill('radNet', FillAll.b=FALSE) 
+EddyProc.C$sMRFluxPartition()
 #+++ Export gap filled and partitioned data to standard data frame
 FilledEddyData.F <- EddyProc.C$sExportResults()
 
@@ -280,7 +298,7 @@ dataClm <- FilledEddyData.F[,grep(pattern = "_f$", x = names(FilledEddyData.F))]
 #Grab the POSIX timestamp
 dataClm$DateTime <- EddyDataWithPosix.F$DateTime - lubridate::minutes(30) # putting back to time at the beginning of the measurement period
 
-names(dataClm) <- c("NEE", "LE", "H", "Ustar", "TBOT", "VPD", "RH", "WIND", "PRECTmms", "PSRF",  "FLDS", "FSDS", "DateTime")
+names(dataClm) <- c("NEE", "LE", "H", "Ustar", "TBOT", "VPD", "RH", "WIND", "PRECTmms", "PSRF",  "FLDS", "FSDS", "radNet", "GPP", "DateTime")
 
 #Convert degC to K for temperature
 dataClm$TBOT <- dataClm$TBOT + 273.15
@@ -360,9 +378,19 @@ WIND  <- ncdf4::ncvar_def("WIND", "m/s", list(lon,lat,time), mv,
                       longname="wind at lowest atm level (WIND)", prec="double")
 ZBOT  <- ncdf4::ncvar_def("ZBOT", "m", list(lon,lat,time), mv,
                       longname="observational height", prec="double")
+NEE <- ncdf4::ncvar_def("NEE", "umolm-2s-1", list(lon,lat,time), mv,
+                          longname="net ecosystem exchange", prec="double")
+FSH  <- ncdf4::ncvar_def("FSH", "Wm-2", list(lon,lat,time), mv,
+                          longname="sensible heat flux", prec="double")
+EFLX_LH_TOT  <- ncdf4::ncvar_def("EFLX_LH_TOT", "Wm-2", list(lon,lat,time), mv,
+                                 longname="latent heat flux", prec="double")
+GPP <- ncdf4::ncvar_def("GPP", "umolm-2s-1", list(lon,lat,time), mv,
+                        longname="gross primary productivity", prec="double")
+Rnet  <- ncdf4::ncvar_def("Rnet", "W/m^2", list(lon,lat,time), mv,
+                          longname="net radiation", prec="double")
 
 #Create the output file
-ncnew <- ncdf4::nc_create(fileOutNcdf, list(LATIXY,LONGXY,FLDS,FSDS,PRECTmms,RH,PSRF,TBOT,WIND,ZBOT))
+ncnew <- ncdf4::nc_create(fileOutNcdf, list(LATIXY,LONGXY,FLDS,FSDS,PRECTmms,RH,PSRF,TBOT,WIND,ZBOT,NEE,FSH,EFLX_LH_TOT,GPP,Rnet))
 
 
 # Write some values to this variable on disk.
@@ -376,6 +404,11 @@ ncnew <- ncdf4::nc_create(fileOutNcdf, list(LATIXY,LONGXY,FLDS,FSDS,PRECTmms,RH,
  ncdf4::ncvar_put(ncnew, TBOT, Data.mon$TBOT)
  ncdf4::ncvar_put(ncnew, WIND, Data.mon$WIND)
  ncdf4::ncvar_put(ncnew, ZBOT, Data.mon$ZBOT)
+ ncdf4::ncvar_put(ncnew, NEE, Data.mon$NEE)
+ ncdf4::ncvar_put(ncnew, FSH, Data.mon$H)
+ ncdf4::ncvar_put(ncnew, EFLX_LH_TOT, Data.mon$LE)
+ ncdf4::ncvar_put(ncnew, GPP, Data.mon$GPP)
+ ncdf4::ncvar_put(ncnew, Rnet, Data.mon$radNet)
 #add attributes
 #ncdf4::ncatt_put(ncnew, time,"calendar", "gregorian" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, FLDS,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
@@ -386,6 +419,11 @@ ncdf4::ncatt_put(ncnew, PSRF,"mode","time-dependent" ,prec=NA,verbose=FALSE,defi
 ncdf4::ncatt_put(ncnew, TBOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, WIND,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, ZBOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, NEE,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, FSH,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, EFLX_LH_TOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, GPP,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, Rnet,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, 0, "created_on",date()       ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, 0, "created_by","David Durden",prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, 0, "created_from",fileOut        ,prec=NA,verbose=FALSE,definemode=FALSE )
