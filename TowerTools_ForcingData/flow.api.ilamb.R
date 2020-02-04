@@ -323,7 +323,7 @@ dataClm$DateTime <- as.numeric(EddyDataWithPosix.F$DateTime - lubridate::minutes
 mv <- -9999.
 
 #NetCDF output filename
-fileOutNcdf <- paste(DirOut,"/NEON_",Site,"_",dateBgn,"_",dateEnd,".nc", sep = "")
+fileOutNcdf <- paste(DirOut,"/NEON_",Site,"_",dateBgn,"_",dateEnd,"2.nc", sep = "")
 #sub(pattern = ".txt", replacement = ".nc", fileOut)
 
 
@@ -340,11 +340,11 @@ LATIXY  <- ncdf4::ncvar_def("LATIXY", "degrees N", list(lat), mv,
                             longname="latitude", prec="double")
 LONGXY  <- ncdf4::ncvar_def("LONGXY", "degrees E", list(lon), mv,
                             longname="longitude", prec="double")
-FLDS  <- ncdf4::ncvar_def("FLDS", "Wm-2", list(lon,lat,time), mv,
+FLDS  <- ncdf4::ncvar_def("FLDS", "W m-2", list(lon,lat,time), mv,
                           longname="incident longwave (FLDS)",  prec="double")
-FSDS  <- ncdf4::ncvar_def("FSDS", "Wm-2", list(lon,lat,time), mv,
+FSDS  <- ncdf4::ncvar_def("FSDS", "W m-2", list(lon,lat,time), mv,
                           longname="incident shortwave (FSDS)", prec="double")
-PRECTmms <- ncdf4::ncvar_def("PRECTmms", "mms-1", list(lon,lat,time), mv,
+PRECTmms <- ncdf4::ncvar_def("PRECTmms", "mm s-1", list(lon,lat,time), mv,
                              longname="precipitation (PRECTmms)",  prec="double")
 PSRF  <- ncdf4::ncvar_def("PSRF", "Pa", list(lon,lat,time), mv,
                           longname="pressure at the lowest atmospheric level (PSRF)", prec="double")
@@ -352,19 +352,19 @@ RH    <- ncdf4::ncvar_def("RH", "%", list(lon,lat,time), mv,
                           longname="relative humidity at lowest atm level (RH)", prec="double")
 TBOT  <- ncdf4::ncvar_def("TBOT", "K", list(lon,lat,time), mv,
                           longname="temperature at lowest atm level (TBOT)", prec="double")
-WIND  <- ncdf4::ncvar_def("WIND", "ms-1", list(lon,lat,time), mv,
+WIND  <- ncdf4::ncvar_def("WIND", "m s-1", list(lon,lat,time), mv,
                           longname="wind at lowest atm level (WIND)", prec="double")
 ZBOT  <- ncdf4::ncvar_def("ZBOT", "m", list(lon,lat,time), mv,
                           longname="observational height", prec="double")
-NEE <- ncdf4::ncvar_def("NEE", "1e-6 molm-2s-1", list(lon,lat,time), mv,
+NEE <- ncdf4::ncvar_def("NEE", "1e-6 mol m-2 s-1", list(lon,lat,time), mv,
                         longname="net ecosystem exchange", prec="double")
-FSH  <- ncdf4::ncvar_def("FSH", "Wm-2", list(lon,lat,time), mv,
+FSH  <- ncdf4::ncvar_def("FSH", "W m-2", list(lon,lat,time), mv,
                          longname="sensible heat flux", prec="double")
-EFLX_LH_TOT  <- ncdf4::ncvar_def("EFLX_LH_TOT", "Wm-2", list(lon,lat,time), mv,
+EFLX_LH_TOT  <- ncdf4::ncvar_def("EFLX_LH_TOT", "W m-2", list(lon,lat,time), mv,
                                  longname="latent heat flux", prec="double")
-GPP <- ncdf4::ncvar_def("GPP", "1e-6 molm-2s-1", list(lon,lat,time), mv,
+GPP <- ncdf4::ncvar_def("GPP", "1e-6 mol m-2 s-1", list(lon,lat,time), mv,
                         longname="gross primary productivity", prec="double")
-Rnet  <- ncdf4::ncvar_def("Rnet", "Wm-2", list(lon,lat,time), mv,
+Rnet  <- ncdf4::ncvar_def("Rnet", "W m-2", list(lon,lat,time), mv,
                           longname="net radiation",  prec="double")
 
 #Create the output file
@@ -372,7 +372,7 @@ ncnew <- ncdf4::nc_create(fileOutNcdf, list(time_bnds,LATIXY,LONGXY,FLDS,FSDS,PR
 
 
 # Write some values to this variable on disk.
-ncdf4::ncvar_put(ncnew, time_bnds, c(dataClm$timeBgn, dataClm$timeEnd))
+ncdf4::ncvar_put(ncnew, time_bnds, t(as.matrix(cbind(dataClm$timeBgn, dataClm$timeEnd))))
 ncdf4::ncvar_put(ncnew, LATIXY, latSite)
 ncdf4::ncvar_put(ncnew, LONGXY, lonSite)
 ncdf4::ncvar_put(ncnew, FLDS, dataClm$FLDS)
