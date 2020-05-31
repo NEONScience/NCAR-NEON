@@ -1,3 +1,23 @@
+##############################################################################################
+#' @title Workflow to NCAR CLM data set
+
+#' @author
+#' David Durden \email{eddy4R.info@gmail.com}
+
+#' @description 
+#' Workflow for collating NEON data from API, gap-filling, and packaging in NCAR CLM netcdf format.
+
+# changelog and author contributions / copyrights
+# David Durden (2019-07-05)
+#   original creation
+# David Durden (2020-05-31)
+# Updating to use neonUtilities for all data retrieval from API
+##############################################################################################
+
+#############################################################
+#Dependencies
+#############################################################
+
 #Call the R HDF5 Library
 packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools")
 
@@ -15,6 +35,7 @@ devtools::install_github(c("NEONScience/eddy4R/pack/eddy4R.base", "NEONScience/N
 #Setup Environment
 options(stringsAsFactors=F)
 
+
 #############################################################
 #Workflow parameters
 #############################################################
@@ -27,45 +48,38 @@ TimeAgr <- 30
 #Beginning date for data grabbing
 dateBgn <- "2019-01-01"
 
-
 #End date for date grabbing
 dateEnd <- "2019-12-31"
 
-
-#The version data for the FP standard conversion processing
-ver = paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
+#Base directory for output
+DirOutBase <-paste0("~/eddy/data/CLM/",ver)
 #Download directory for HDF5 files from the API
 DirDnld=tempdir()
 
-#H5 extraction directory
-DirExtr <- paste0(DirDnld,"/extr")
-#paste0("~/eddy/data/Ameriflux/",ver,"/",site)
-#Output directory
-if("DIROUT" %in% base::names(base::Sys.getenv())) {
+# check environment variables for eddy4R workflow, if it exists grab ENV variables 
+if("METHPARAFLOW" %in% base::names(base::Sys.getenv())) {
+  Site <- Sys.getenv("SITE")
+  dateBgn <- Sys.getenv("DATEBGN") 
+  dateEnd <- Sys.getenv("DATEEND")
   DirOutBase <- Sys.getenv("DIROUT")
-}else{  
-  #DirOut <- "N:/Science/FIUDATA/IPT_data/dynamic/AmeriFlux/" #Default folder Ameriflux data output
-  DirOutBase <-paste0("~/eddy/data/CLM/",ver)
-  
 }
 
+
+
+
 #############################################################
+#static workflow parameters
+#############################################################
+#The version data for the FP standard conversion processing
+ver = paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
 
-
+#H5 extraction directory
+DirExtr <- paste0(DirDnld,"/extr")
 #Append the site to the base output directory
 DirOut <- paste0(DirOutBase, "/", Site)
+
 #Check if directory exists and create if not
 if(!dir.exists(DirOut)) dir.create(DirOut, recursive = TRUE)
-
-
-# #Define site info
-# siteInfo <- Noble::tis_site_config
-# siteInfo <- siteInfo[siteInfo$SiteID == Site,]
-# 
-# #Grab latitude and longitude from site metadata
-# latSite <- siteInfo$Latitude
-# lonSite <- siteInfo$Longitude
-# distTowSite <- eddy4R.base::def.unit.conv(siteInfo$Tower.Height..ft., unitFrom = "ft", unitTo = "m")
 
 #DP number
 idDpFlux <- 'DP4.00200.001'
@@ -73,16 +87,6 @@ idDpFlux <- 'DP4.00200.001'
 #Set dates for pulling data from API
 dateBgn <- as.Date(dateBgn) - lubridate::days(1) #neonUtitilities a month behind
 dateEnd <- as.Date(dateEnd)
-#Create the method for date sequence based off of the package chosen
-# MethDateSeq <- ifelse(test = Pack == "basic", yes = "month", no = "day")
-# 
-# #If monthly files from basic chosen round to the beginning and end of the month for dateBgn and dateEnd
-# if(MethDateSeq == "month"){
-#   dateBgn <- lubridate::floor_date(as.Date(dateBgn), unit = "month")
-#   dateEnd <- lubridate::ceiling_date(as.Date(dateEnd), unit = "month") - lubridate::days(1)
-# }
-# #Create the date sequence
-# setDate <- seq(from = as.Date(dateBgn), to = as.Date(dateEnd), by = MethDateSeq)
 
 ##############################################################################
 #Flux data
