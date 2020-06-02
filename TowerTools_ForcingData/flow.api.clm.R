@@ -40,16 +40,16 @@ options(stringsAsFactors=F)
 #Workflow parameters
 #############################################################
 #Which NEON site are we grabbing data from (4-letter ID)
-Site <- "NIWO"
+Site <- "HARV"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
 TimeAgr <- 30
 #Beginning date for data grabbing
-dateBgn <- "2018-01-01"
+dateBgn <- "2019-01-01"
 
 #End date for date grabbing
-dateEnd <- "2018-12-31"
+dateEnd <- "2019-12-31"
 
 #The version data for the FP standard conversion processing
 ver <- paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
@@ -123,7 +123,7 @@ IdVer <-paste0("0",metaSite$LvlMeasTow,"0")
 LvlTowr <- paste0(IdHor,IdVer)
 
 # time difference between local time and UTC
-if(!base::is.null(Para$Site$ZoneTime)) {
+if(!base::is.null(metaSite$ZoneTime)) {
   
   # start date and time of dataset in UTC
   timeTmp01 <- base::as.POSIXlt(x = base::paste0(dateBgn, "T00:00:00Z"), format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
@@ -136,7 +136,7 @@ if(!base::is.null(Para$Site$ZoneTime)) {
     
   } else {
     
-    base::warning(base::paste("Time zone attribute", Para$Site$ZoneTime,
+    base::warning(base::paste("Time zone attribute", metaSite$ZoneTime,
                               "not available in R base::OlsonNames() database. Continue with local time equals UTC time."))
     
   }}
