@@ -31,7 +31,7 @@ ENV MAKEFLAGS='-j3'
 			      # Library for git via ssh key
 			      ssh \
 			      vim \
-            libxml2-dev \
+            libxml2-dev" \
             #mysql-common" \
             #fftw3\
     && BUILDDEPS="libhdf5-dev \

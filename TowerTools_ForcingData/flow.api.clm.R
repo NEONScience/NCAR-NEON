@@ -40,17 +40,19 @@ options(stringsAsFactors=F)
 #Workflow parameters
 #############################################################
 #Which NEON site are we grabbing data from (4-letter ID)
-Site <- "HARV"
+Site <- "NIWO"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
 TimeAgr <- 30
 #Beginning date for data grabbing
-dateBgn <- "2019-01-01"
+dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2019-12-31"
+dateEnd <- "2018-12-31"
 
+#The version data for the FP standard conversion processing
+ver <- paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
 #Base directory for output
 DirOutBase <-paste0("~/eddy/data/CLM/",ver)
 #Download directory for HDF5 files from the API
@@ -70,8 +72,6 @@ if("METHPARAFLOW" %in% base::names(base::Sys.getenv())) {
 #############################################################
 #static workflow parameters
 #############################################################
-#The version data for the FP standard conversion processing
-ver = paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
 
 #H5 extraction directory
 DirExtr <- paste0(DirDnld,"/extr")
@@ -89,7 +89,7 @@ dateBgn <- as.Date(dateBgn) - lubridate::days(1) #neonUtitilities a month behind
 dateEnd <- as.Date(dateEnd)
 
 ##############################################################################
-#Flux data
+#Flux data download
 ##############################################################################
 
 #Download zip files
@@ -106,6 +106,11 @@ utils::unzip(zipFile, exdir = DirExtr)
 
 #Get HDF5 filename
 fileNameHdf5 <- base::list.files(path = DirExtr, pattern = "*.h5", full.names = TRUE)
+
+##############################################################################
+#Metadata determination
+##############################################################################
+
 #Read site level metadata from HDF5
 metaSite <- rhdf5::h5readAttributes(file = fileNameHdf5, name = Site)
 #Grab latitude and longitude from site metadata
@@ -117,55 +122,43 @@ IdHor <- "000"
 IdVer <-paste0("0",metaSite$LvlMeasTow,"0")
 LvlTowr <- paste0(IdHor,IdVer)
 
+# time difference between local time and UTC
+if(!base::is.null(Para$Site$ZoneTime)) {
+  
+  # start date and time of dataset in UTC
+  timeTmp01 <- base::as.POSIXlt(x = base::paste0(dateBgn, "T00:00:00Z"), format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
+  timeTmp02 <- timeTmp01
+  
+  # assign local timezone attribute, if available in database
+  if(metaSite$ZoneTime %in% base::OlsonNames()) {
+    
+    attributes(timeTmp02)$tzone <- metaSite$ZoneTime
+    
+  } else {
+    
+    base::warning(base::paste("Time zone attribute", Para$Site$ZoneTime,
+                              "not available in R base::OlsonNames() database. Continue with local time equals UTC time."))
+    
+  }}
+  
+  # time difference between local time and UTC
+  metaSite$TimeDiffUtcLst <- base::as.numeric(base::difftime(timeTmp01, timeTmp02, units = "hours"))
+  
+  # clean up
+  rm(timeTmp01, timeTmp02)
 
+##############################################################################
+#Flux data read in
+##############################################################################
+  
 #Initialize data List
 dataList <- list()
 
 #Read data from downloaded zip files
 dataList$dp04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp04", avg = 30)
 dataList$dp01 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp01", avg = 30)  
-  #lapply(setDate, function(x) {
-#   year <- lubridate::year(x)
-#   mnth <- lubridate::month(x)
-#   tryCatch(som::def.neon.api.get.data.hdf5(site=Site,idDpMain=idDpFlux,year=year,mnth=mnth,DirDnld=DirDnld,Rm = TRUE), error=function(e) NULL)
-# })
 
-#Add names to list for year/month combinations
-# names(dataList) <- paste0(lubridate::year(setDate),sprintf("%02d",lubridate::month(setDate)))
-# 
-# #Remove NULL elements from list
-# dataList <- dataList[vapply(dataList, Negate(is.null), NA)]
-
-##############################################################################
-#Determine HOR & VER indices
-##############################################################################
-
-
-#Subset to the Ameriflux variables to deliver
-# dataListFlux <- lapply(names(dataList), function(x) {
-#   data.frame(
-#     "TIMESTAMP_START" = as.POSIXlt(dataList[[x]][[Site]]$dp04$data$fluxCo2$turb$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
-#     "TIMESTAMP_END" = as.POSIXlt(dataList[[x]][[Site]]$dp04$data$fluxCo2$turb$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
-#     "NEE"= dataList[[x]][[Site]]$dp04$data$fluxCo2$nsae$flux,
-#     "LE" = dataList[[x]][[Site]]$dp04$data$fluxH2o$turb$flux,
-#     "Ustar" = dataList[[x]][[Site]]$dp04$data$fluxMome$turb$veloFric,
-#     "H" = dataList[[x]][[Site]]$dp04$data$fluxTemp$turb$flux, 
-#     "qfTurbFlow" = dataList[[x]][[Site]]$dp01$qfqm$h2oTurb[[paste0(LvlTowr,"_30m")]]$frt00Samp$qfFinl,
-#     "qfTurbH2oFinl" = dataList[[x]][[Site]]$dp01$qfqm$h2oTurb[[paste0(LvlTowr,"_30m")]]$rtioMoleDryH2o$qfFinl,
-#     "qfTurbCo2Finl" = dataList[[x]][[Site]]$dp01$qfqm$co2Turb[[paste0(LvlTowr,"_30m")]]$rtioMoleDryCo2$qfFinl,
-#     "WS_MDS" = dataList[[x]][[Site]]$dp01$data$soni[[paste0(LvlTowr,"_30m")]]$veloXaxsYaxsErth$mean,
-#     #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
-#     "Tair" = dataList[[x]][[Site]]$dp01$data$soni[[paste0(LvlTowr,"_30m")]]$tempAir$mean
-#     , stringsAsFactors = FALSE)
-# })
-# 
-# #Names for the data output
-# names(dataListFlux) <- names(dataList)
-# 
-# #Combine the monthly data into a single dataframe
-# dataDfFlux <- do.call(rbind.data.frame,dataListFlux)
-
-
+#Create flux data.frame
 dataDfFlux <-   data.frame(
     "TIMESTAMP_START" = as.POSIXlt(dataList$dp04[[Site]]$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
     "TIMESTAMP_END" = as.POSIXlt(dataList$dp04[[Site]]$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
@@ -173,12 +166,12 @@ dataDfFlux <-   data.frame(
     "LE" = dataList$dp04[[Site]]$data.fluxH2o.turb.flux, #Latent heat flux (turb)
     "Ustar" = dataList$dp04[[Site]]$data.fluxMome.turb.veloFric, #Friction velocity
     "H" = dataList$dp04[[Site]]$data.fluxTemp.turb.flux,#Sensible heat flux (turb)
-    "qfTurbFlow" = dataList$dp01[[Site]]$qfqm.h2oStor.frt00.qfFinl,
-    "qfTurbH2oFinl" = dataList$dp01[[Site]]$qfqm.h2oStor.rtioMoleDryH2o.qfFinl,
-    "qfTurbCo2Finl" = dataList$dp01[[Site]]$qfqm.co2Stor.rtioMoleDryCo2.qfFinl,
-    "WS_MDS" = dataList$dp01[[Site]]$data.soni.veloXaxsYaxsErth.mean,
+    "qfTurbFlow" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
+    "qfTurbH2oFinl" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
+    "qfTurbCo2Finl" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
+    "WS_MDS" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
     #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
-    "Tair" = dataList$dp01[[Site]]$data.soni.tempAir.mean
+    "Tair" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "data.soni.tempAir.mean"]
     , stringsAsFactors = FALSE)
 
 ###################################################################################
@@ -261,12 +254,21 @@ dataMetSub$Rg <- dataMetSub$Rg[dataMetSub$Rg$verticalPosition == IdVer,]
 dataMetSub$FLDS_MDS <- dataMetSub$FLDS_MDS[dataMetSub$FLDS_MDS$verticalPosition == IdVer,]
 dataMetSub$rH <- dataMetSub$rH[dataMetSub$rH$horizontalPosition == "003",]
 
+#time regularization of met data
+dataMetSubRglr <- lapply(names(dataMetSub), function(x){
+timeRglrMet <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataMetSub[[x]]$startDateTime), dataMeas = dataMetSub[[x]], BgnRglr = dataDfFlux$TIMESTAMP[1] - lubridate::minutes(30), EndRglr = dataDfFlux$TIMESTAMP[length(dataDfFlux$TIMESTAMP)] - lubridate::minutes(30), TzRglr = "UTC", FreqRglr = 1/(60*30))
+
+return(timeRglrMet$dataRglr)
+})#End lapply for time regularization of met data
+
+#Add names to list of Dataframes of regularized data
+names(dataMetSubRglr) <- names(varDp)
 
 #Grab just the Met data of interest for the forcing data
 dataDfMet <- lapply(seq_along(subVar), function(x){
   #print(x)
   #Grab the variables of interest
-  tmp <- dataMetSub[[names(subVar[x])]][,grep(pattern = paste0("^",subVar[x]), x = names(dataMetSub[[names(varDp[x])]]))] # use ^ to indicate the pattern starts with the name given
+  tmp <- dataMetSubRglr[[names(subVar[x])]][,grep(pattern = paste0("^",subVar[x]), x = names(dataMetSubRglr[[names(varDp[x])]]))] # use ^ to indicate the pattern starts with the name given
   return(tmp)
 })
 
@@ -277,8 +279,7 @@ names(dataDfMet) <- names(varDp)
 dataDfMet$PRECTmms_MDS <- dataDfMet$PRECTmms_MDS/1800 #1800 sec/0.5 hours
 
 #Calculate net radiation
-dataDfMet$radNet <-dataMetSub$Rg[["inSWMean"]] - dataMetSub$Rg[["outSWMean"]] + dataMetSub$Rg[["inLWMean"]] - dataMetSub$Rg[["outLWMean"]]
-
+dataDfMet$radNet <-dataMetSubRglr$Rg[["inSWMean"]] - dataMetSubRglr$Rg[["outSWMean"]] + dataMetSubRglr$Rg[["inLWMean"]] - dataMetSubRglr$Rg[["outLWMean"]]
 
 
 ##############################################################################
@@ -353,7 +354,7 @@ EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year.s='Year', Day
 EddyProc.C <- sEddyProc$new(Site, EddyDataWithPosix.F, c('NEE','Rg','Tair','VPD','rH','LE','H','Ustar','Pa_MDS', 'FLDS_MDS','WS_MDS', 'PRECTmms_MDS', 'radNet'))
 
 #Set location information
-EddyProc.C$sSetLocationInfo(LatDeg=latSite, LongDeg=lonSite)
+EddyProc.C$sSetLocationInfo(LatDeg=latSite, LongDeg=lonSite, TimeZoneHour = metaSite$TimeDiffUtcLst)
 
 #+++ Fill gaps in variables with MDS gap filling algorithm (without prior ustar filtering)
 EddyProc.C$sMDSGapFill('NEE', FillAll.b=TRUE) #Fill all values to estimate flux uncertainties
@@ -369,7 +370,7 @@ EddyProc.C$sMDSGapFill('Pa_MDS', FillAll.b=FALSE)
 EddyProc.C$sMDSGapFill('FLDS_MDS', FillAll.b=FALSE) 
 EddyProc.C$sMDSGapFill('Rg', FillAll.b=FALSE) 
 EddyProc.C$sMDSGapFill('radNet', FillAll.b=FALSE) 
-#EddyProc.C$sMRFluxPartition()
+EddyProc.C$sMRFluxPartition()
 #+++ Export gap filled and partitioned data to standard data frame
 FilledEddyData.F <- EddyProc.C$sExportResults()
 
@@ -391,43 +392,50 @@ attributes(obj = dataClm$PSRF)$units <- "Pa"
 #Create tower height measurement field
 dataClm$ZBOT <- rep(distTowSite,nrow(dataClm))
 
+#Year month combination for data filtering
+dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m")
 
 ##############################################################################
 #Write output to CLM
 ##############################################################################
 
 #Define the timesteps for data output
-year       <- c(2018) 
-mon        <- c("01","02","03","04","05","06","07","08","09","10","11","12") 
-regu_days  <- c(31,28,31,30,31,30,31,31,30,31,30,31)
-leap_days  <- c(31,29,31,30,31,30,31,31,30,31,30,31)
-regu_steps <- regu_days * 48
-leap_steps <- leap_days * 48
-nyear <- length(year)
+# year       <- unique(lubridate::year(dataClm$DateTime + lubridate::days(1))) 
+# mon        <- unique(lubridate::month(dataClm$DateTime + lubridate::days(1)))
+# regu_days  <- c(31,28,31,30,31,30,31,31,30,31,30,31)
+# leap_days  <- c(31,29,31,30,31,30,31,31,30,31,30,31)
+# regu_steps <- regu_days * 48
+# leap_steps <- leap_days * 48
+# nyear <- length(year)
 
 #Define missing value fill
 mv <- -9999.  
-startStep <- 1
+# startStep <- 1
 
 #Loop around years of data
-for (y in 1:(nyear)) {
-  #  y <- 1
-  if(year[y]==2008 || year[y]==2012) {
-    nsteps <- leap_steps
-  } else {
-    nsteps <- regu_steps
-  }
+# for (y in ) {
+#   #  y <- 1
+#   if(year[y]==2008 || year[y]==2012) {
+#     nsteps <- leap_steps
+#   } else {
+#     nsteps <- regu_steps
+#   }
 
-  for (m in 1:12) {
-    timeStep <- seq(0,nsteps[m]-1,1)
+#Set of year/month combinations for netCDF output
+setYearMon <- unique(strftime(dataClm$DateTime, "%Y-%m"))
+
+  for (m in setYearMon) {
+    #m <- setYearMon[1] #for testing
+    Data.mon <- dataClm[dataClm$yearMon == m,]
+    timeStep <- seq(0,nrow(Data.mon)-1,1)
     time     <- timeStep/48
-    endStep  <- startStep + nsteps[m]-1
-    Data.mon <- dataClm[startStep:endStep, ]
-    print(paste(year[y],m,"Data date =",Data.mon$DateTime[1]))
+    #endStep  <- startStep + nsteps[m]-1
+    
+    print(paste(m,"Data date =",Data.mon$DateTime[1]))
     names(Data.mon)
   
 #NetCDF output filename
-fileOutNcdf <- paste(DirOut,"/",year[y],"-",mon[m],".nc", sep = "")
+fileOutNcdf <- paste(DirOut,"/",m,".nc", sep = "")
   #sub(pattern = ".txt", replacement = ".nc", fileOut)
 
 
@@ -513,10 +521,10 @@ ncdf4::ncatt_put(ncnew, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALS
 #Close Netcdf file connection
 ncdf4::nc_close(ncnew)
 #Add step
-startStep <- endStep + 1
+#startStep <- endStep + 1
 #Remove not needed variables
 remove(endStep, time, timeStep, fileOutNcdf, ncnew, Data.mon,
        FLDS,FSDS,RH,PRECTmms,PSRF,TBOT,WIND,ZBOT)
   } #End of monthloop
 
-} #End of year loop
+#} #End of year loop
