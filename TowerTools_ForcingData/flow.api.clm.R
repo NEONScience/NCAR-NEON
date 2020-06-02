@@ -435,7 +435,7 @@ setYearMon <- unique(strftime(dataClm$DateTime, "%Y-%m"))
     names(Data.mon)
   
 #NetCDF output filename
-fileOutNcdf <- paste(DirOut,"/",m,"2.nc", sep = "")
+fileOutNcdf <- paste(DirOut,"/",m,".nc", sep = "")
   #sub(pattern = ".txt", replacement = ".nc", fileOut)
 
 
