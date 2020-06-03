@@ -49,7 +49,7 @@ TimeAgr <- 30
 dateBgn <- "2019-01-01"
 
 #End date for date grabbing
-dateEnd <- "2019-06-30"
+dateEnd <- "2019-11-30"
 
 #The version data for the FP standard conversion processing
 ver <- paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
