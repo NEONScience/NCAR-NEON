@@ -2,6 +2,8 @@
 # https://hub.docker.com/r/rocker/ropensci/
 FROM rocker/rstudio:3.6.1
 
+
+
 WORKDIR /home/NCAR-NEON
 # copy clone of GitHub source repo "NEONScience/NEON-FIU-algorithm" to the Docker image
 COPY . .
@@ -49,6 +51,8 @@ ENV MAKEFLAGS='-j3'
     REddyProc \
     ncdf4 \
     devtools \
+    ## from bioconductor
+    && R -e "BiocManager::install('rhdf5', update=FALSE, ask=FALSE)" \
 
     # provide read and write access for default R library location to Rstudio users
     # TODO: PERHAPS THIS SHOULD JUST CHOWN TO rstudio instead of setting 777 perms? And at the end of the file -sj
