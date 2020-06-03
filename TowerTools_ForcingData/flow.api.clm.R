@@ -346,7 +346,7 @@ EddyData.F$NEE[EddyData.F$NEE < -100] <- NA
 EddyData.F <- cbind(EddyData.F,VPD=fCalcVPDfromRHandTair(EddyData.F$rH, EddyData.F$Tair))
 
 #+++ Add time stamp in POSIX time format
-EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year.s='Year', Day.s='DoY', Hour.s='Hour')
+EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year='Year', Day='DoY', Hour='Hour')
 
 
 #+++ Initalize R5 reference class sEddyProc for processing of eddy data
