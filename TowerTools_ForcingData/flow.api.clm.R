@@ -49,7 +49,7 @@ TimeAgr <- 30
 dateBgn <- "2019-01-01"
 
 #End date for date grabbing
-dateEnd <- "2019-12-31"
+dateEnd <- "2019-06-30"
 
 #The version data for the FP standard conversion processing
 ver <- paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
@@ -166,12 +166,12 @@ dataDfFlux <-   data.frame(
     "LE" = dataList$dp04[[Site]]$data.fluxH2o.turb.flux, #Latent heat flux (turb)
     "Ustar" = dataList$dp04[[Site]]$data.fluxMome.turb.veloFric, #Friction velocity
     "H" = dataList$dp04[[Site]]$data.fluxTemp.turb.flux,#Sensible heat flux (turb)
-    "qfTurbFlow" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
-    "qfTurbH2oFinl" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
-    "qfTurbCo2Finl" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
-    "WS_MDS" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
+    "qfTurbFlow" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
+    "qfTurbH2oFinl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
+    "qfTurbCo2Finl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
+    "WS_MDS" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
     #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
-    "Tair" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "data.soni.tempAir.mean"]
+    "Tair" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
     , stringsAsFactors = FALSE)
 
 ###################################################################################
