@@ -40,16 +40,16 @@ options(stringsAsFactors=F)
 #Workflow parameters
 #############################################################
 #Which NEON site are we grabbing data from (4-letter ID)
-Site <- "NIWO"
+Site <- "HARV"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
 TimeAgr <- 30
 #Beginning date for data grabbing
-dateBgn <- "2018-01-01"
+dateBgn <- "2019-01-01"
 
 #End date for date grabbing
-dateEnd <- "2018-12-31"
+dateEnd <- "2019-11-30"
 
 #The version data for the FP standard conversion processing
 ver <- paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
@@ -123,7 +123,7 @@ IdVer <-paste0("0",metaSite$LvlMeasTow,"0")
 LvlTowr <- paste0(IdHor,IdVer)
 
 # time difference between local time and UTC
-if(!base::is.null(Para$Site$ZoneTime)) {
+if(!base::is.null(metaSite$ZoneTime)) {
   
   # start date and time of dataset in UTC
   timeTmp01 <- base::as.POSIXlt(x = base::paste0(dateBgn, "T00:00:00Z"), format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
@@ -136,7 +136,7 @@ if(!base::is.null(Para$Site$ZoneTime)) {
     
   } else {
     
-    base::warning(base::paste("Time zone attribute", Para$Site$ZoneTime,
+    base::warning(base::paste("Time zone attribute", metaSite$ZoneTime,
                               "not available in R base::OlsonNames() database. Continue with local time equals UTC time."))
     
   }}
@@ -166,12 +166,12 @@ dataDfFlux <-   data.frame(
     "LE" = dataList$dp04[[Site]]$data.fluxH2o.turb.flux, #Latent heat flux (turb)
     "Ustar" = dataList$dp04[[Site]]$data.fluxMome.turb.veloFric, #Friction velocity
     "H" = dataList$dp04[[Site]]$data.fluxTemp.turb.flux,#Sensible heat flux (turb)
-    "qfTurbFlow" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
-    "qfTurbH2oFinl" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
-    "qfTurbCo2Finl" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
-    "WS_MDS" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
+    "qfTurbFlow" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
+    "qfTurbH2oFinl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
+    "qfTurbCo2Finl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
+    "WS_MDS" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
     #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
-    "Tair" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "data.soni.tempAir.mean"]
+    "Tair" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
     , stringsAsFactors = FALSE)
 
 ###################################################################################
@@ -346,7 +346,7 @@ EddyData.F$NEE[EddyData.F$NEE < -100] <- NA
 EddyData.F <- cbind(EddyData.F,VPD=fCalcVPDfromRHandTair(EddyData.F$rH, EddyData.F$Tair))
 
 #+++ Add time stamp in POSIX time format
-EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year.s='Year', Day.s='DoY', Hour.s='Hour')
+EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year='Year', Day='DoY', Hour='Hour')
 
 
 #+++ Initalize R5 reference class sEddyProc for processing of eddy data
@@ -357,19 +357,19 @@ EddyProc.C <- sEddyProc$new(Site, EddyDataWithPosix.F, c('NEE','Rg','Tair','VPD'
 EddyProc.C$sSetLocationInfo(LatDeg=latSite, LongDeg=lonSite, TimeZoneHour = metaSite$TimeDiffUtcLst)
 
 #+++ Fill gaps in variables with MDS gap filling algorithm (without prior ustar filtering)
-EddyProc.C$sMDSGapFill('NEE', FillAll.b=TRUE) #Fill all values to estimate flux uncertainties
-EddyProc.C$sMDSGapFill('LE', FillAll.b=TRUE)
-EddyProc.C$sMDSGapFill('H', FillAll.b=TRUE)
-EddyProc.C$sMDSGapFill('Ustar', FillAll.b=TRUE)
-EddyProc.C$sMDSGapFill('Tair', FillAll.b=FALSE)  
-EddyProc.C$sMDSGapFill('VPD',    FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('rH',     FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('WS_MDS', FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('PRECTmms_MDS', FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('Pa_MDS', FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('FLDS_MDS', FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('Rg', FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('radNet', FillAll.b=FALSE) 
+EddyProc.C$sMDSGapFill('NEE', FillAll=TRUE) #Fill all values to estimate flux uncertainties
+EddyProc.C$sMDSGapFill('LE', FillAll=TRUE)
+EddyProc.C$sMDSGapFill('H', FillAll=TRUE)
+EddyProc.C$sMDSGapFill('Ustar', FillAll=TRUE)
+EddyProc.C$sMDSGapFill('Tair', FillAll=FALSE)  
+EddyProc.C$sMDSGapFill('VPD',    FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('rH',     FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('WS_MDS', FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('PRECTmms_MDS', FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('Pa_MDS', FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('FLDS_MDS', FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('Rg', FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('radNet', FillAll=FALSE) 
 EddyProc.C$sMRFluxPartition()
 #+++ Export gap filled and partitioned data to standard data frame
 FilledEddyData.F <- EddyProc.C$sExportResults()
