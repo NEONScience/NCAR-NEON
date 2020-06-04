@@ -53,7 +53,7 @@ dateEnd <- "2019-12-31"
 
 # Run using less memory (but more time);
 lowmem <- TRUE 
-max <- 6 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
+maxmonths <- 3 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
 
 
 #The version data for the FP standard conversion processing
@@ -187,10 +187,10 @@ dataList <- list()
     # Lower memory option: place zips in separate folders, read in data for each subdirectory 
     # and create a dataframe for each. Then concatenate the dataframes.
     
-    # make subdirectories with 6 months data in each
+    # make subdirectories with maxmonths months data in each
+    writeLines(paste0("Moving zips into subdirectories"))
     ziplist <- list.files(paste0(DirDnld,"/filesToStack00200/"), full.names = TRUE)
-    max <- 6 # six months of data maximum in each folder
-    zipgroups <- split(ziplist,ceiling(seq_along(ziplist)/max))
+    zipgroups <- split(ziplist,ceiling(seq_along(ziplist)/maxmonths))
     
     sapply(names(zipgroups), function(x) {dir.create(paste0(DirDnld,"/filesToStack00200/",x))})
     
@@ -200,23 +200,23 @@ dataList <- list()
       print(folder)
       newname <- gsub(pattern = "/filesToStack00200/", 
                       replacement = paste0("/filesToStack00200/", folder), zipgroups[[x]])
-      print(zipgroups[[x]])
-      print(newname)
       file.rename(from = zipgroups[[x]], newname)
       })
     
     # Run stackEddy for each subdirectory
+    writeLines(paste0("Extracting data"))
     dataDfFlux_part <- vector(mode = "list", 
                       length = length(list.dirs(paste0(DirDnld,"/filesToStack00200/"), 
                                                                recursive = FALSE)))
 
     for (i in seq_along(list.dirs(paste0(DirDnld,"/filesToStack00200/"), 
                                   recursive = FALSE))) {
-      print(i)
+      writeLines(paste0("Getting data from subdirectory ", i, "..."))
       tmpList_04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/", i), level = "dp04", avg = 30)
       tmpList_01 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/", i), level = "dp01", avg = 30)
       
       #Create flux data.frame for each subdirectory
+      writeLines(paste0("Adding flux data from folder ", i, " to the flux data.frame"))
       dataDfFlux_part[[i]] <-   data.frame(
         "TIMESTAMP_START" = as.POSIXlt(tmpList_04[[Site]]$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
         "TIMESTAMP_END" = as.POSIXlt(tmpList_04[[Site]]$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
@@ -237,6 +237,7 @@ dataList <- list()
     rm(tmpList_04, tmpList_01)
     
     # combine output
+    writeLines(paste0("Combining all ", i, " dataframes into one."))
     dataDfFlux <- do.call(rbind, dataDfFlux_part)
     }
 
