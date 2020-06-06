@@ -12,7 +12,7 @@ ARG IMAGE_NAME
 ARG VCS_REF
 ARG VERSION
 ENV BUILD_DATE ${BUILD_DATE:-2020-04-24}
-ENV IMAGE_NAME
+#ENV IMAGE_NAME
 
 WORKDIR /home/NCAR-NEON
 # copy clone of GitHub source repo "NEONScience/NEON-FIU-algorithm" to the Docker image
