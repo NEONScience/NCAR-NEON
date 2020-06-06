@@ -19,5 +19,5 @@ WORKDIR /home/NCAR-NEON
 COPY . .
 
 # Build R dependencies using two cpu's worth of resources
-ENV MAKEFLAGS='-j3'
+#ENV MAKEFLAGS='-j3'
 
