@@ -12,10 +12,12 @@ ARG IMAGE_NAME
 ARG VCS_REF
 ARG VERSION
 
-RUN echo "${BUILD_DATE}, ${IMAGE_NAME}, ${VCS_REF}"
+RUN echo "${BUILD_DATE}, ${IMAGE_NAME}, ${VCS_REF}, ${VERSION}"
 
 ENV BUILD_DATE ${BUILD_DATE:-2020-04-24}
 #ENV IMAGE_NAME
+
+RUN echo "${BUILD_DATE}, ${IMAGE_NAME}, ${VCS_REF}, ${VERSION}"
 
 WORKDIR /home/NCAR-NEON
 # copy clone of GitHub source repo "NEONScience/NEON-FIU-algorithm" to the Docker image
