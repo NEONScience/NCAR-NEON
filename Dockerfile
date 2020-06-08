@@ -5,12 +5,13 @@ FROM rocker/rstudio:3.6.1
 LABEL org.label-schema.license="AGPL-3.0" \
       org.label-schema.vcs-url="https://github.com/NEONScience/NCAR-NEON" \
       org.label-schema.vendor="NEON" \
-      maintainer="David Durden <ddurden@battelleecology.org>"
+      maintainer="David Durden <ddurden@battelleecology.org>"\
+      vers=$IMAGE_NAME
 
 ARG BUILD_DATE
-ARG IMAGE_NAME
+#ARG IMAGE_NAME
 ARG VCS_REF
-ARG VERSION
+#ARG VERSION
 
 RUN echo "${BUILD_DATE}, ${IMAGE_NAME}, ${VCS_REF}, ${VERSION}"
 
