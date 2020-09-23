@@ -18,6 +18,7 @@
 #Dependencies
 #############################################################
 
+
 #Call the R HDF5 Library
 packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools")
 
@@ -40,21 +41,21 @@ options(stringsAsFactors=F)
 #Workflow parameters
 #############################################################
 #Which NEON site are we grabbing data from (4-letter ID)
-Site <- "HARV"
+Site <- "NIWO"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
 TimeAgr <- 30
 #Beginning date for data grabbing
-dateBgn <- "2019-01-01"
+dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2019-11-30"
+dateEnd <- "2018-12-31"
 
 #The version data for the FP standard conversion processing
 ver <- paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
 #Base directory for output
-DirOutBase <-paste0("~/eddy/data/CLM/",ver)
+DirOutBase <-paste0("~/Users/wwieder/Desktop/Working_files/NEON/NCAR_NEON/NEONforcing/",ver)
 #Download directory for HDF5 files from the API
 DirDnld=tempdir()
 
