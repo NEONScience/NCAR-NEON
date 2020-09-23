@@ -248,7 +248,11 @@ dataList <- list()
 ###################################################################################
 #Time regularization if needed
 # Regularize timeseries to 30 minutes in case missing data after CI processing
-timeRglr <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataDfFlux$TIMESTAMP_START), dataMeas = dataDfFlux, BgnRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_START[1]), EndRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_END[length(dataDfFlux$TIMESTAMP_END)]), TzRglr = "UTC", FreqRglr = 1/(60*30))
+timeRglr <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataDfFlux$TIMESTAMP_START, tz = "UTC"), 
+                                  dataMeas = dataDfFlux, 
+                                  BgnRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_START[1], tz = "UTC"), 
+                                  EndRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_END[length(dataDfFlux$TIMESTAMP_END)], tz = "UTC"), 
+                                  TzRglr = "UTC", FreqRglr = 1/(60*30))
 # 
 # #Reassign data to data.frame
 dataDfFlux <- timeRglr$dataRglr
@@ -327,7 +331,11 @@ dataMetSub$rH <- dataMetSub$rH[dataMetSub$rH$horizontalPosition == "003",]
 
 #time regularization of met data
 dataMetSubRglr <- lapply(names(dataMetSub), function(x){
-timeRglrMet <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataMetSub[[x]]$startDateTime), dataMeas = dataMetSub[[x]], BgnRglr = dataDfFlux$TIMESTAMP[1] - lubridate::minutes(30), EndRglr = dataDfFlux$TIMESTAMP[length(dataDfFlux$TIMESTAMP)] - lubridate::minutes(30), TzRglr = "UTC", FreqRglr = 1/(60*30))
+timeRglrMet <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataMetSub[[x]]$startDateTime), 
+                                     dataMeas = dataMetSub[[x]], 
+                                     BgnRglr = dataDfFlux$TIMESTAMP[1] - lubridate::minutes(30), 
+                                     EndRglr = dataDfFlux$TIMESTAMP[length(dataDfFlux$TIMESTAMP)] - lubridate::minutes(30), 
+                                     TzRglr = "UTC", FreqRglr = 1/(60*30))
 
 return(timeRglrMet$dataRglr)
 })#End lapply for time regularization of met data
@@ -464,36 +472,18 @@ attributes(obj = dataClm$PSRF)$units <- "Pa"
 dataClm$ZBOT <- rep(distTowSite,nrow(dataClm))
 
 #Year month combination for data filtering
-dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m")
-
+dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m", tz='UTC')
+dataClm$yearMon[1:20]
 ##############################################################################
 #Write output to CLM
 ##############################################################################
-
-#Define the timesteps for data output
-# year       <- unique(lubridate::year(dataClm$DateTime + lubridate::days(1))) 
-# mon        <- unique(lubridate::month(dataClm$DateTime + lubridate::days(1)))
-# regu_days  <- c(31,28,31,30,31,30,31,31,30,31,30,31)
-# leap_days  <- c(31,29,31,30,31,30,31,31,30,31,30,31)
-# regu_steps <- regu_days * 48
-# leap_steps <- leap_days * 48
-# nyear <- length(year)
 
 #Define missing value fill
 mv <- -9999.  
 # startStep <- 1
 
-#Loop around years of data
-# for (y in ) {
-#   #  y <- 1
-#   if(year[y]==2008 || year[y]==2012) {
-#     nsteps <- leap_steps
-#   } else {
-#     nsteps <- regu_steps
-#   }
-
 #Set of year/month combinations for netCDF output
-setYearMon <- unique(strftime(dataClm$DateTime, "%Y-%m"))
+setYearMon <- unique(strftime(dataClm$DateTime, "%Y-%m", tz='UTC'))
 
   for (m in setYearMon) {
     #m <- setYearMon[1] #for testing
@@ -501,8 +491,11 @@ setYearMon <- unique(strftime(dataClm$DateTime, "%Y-%m"))
     timeStep <- seq(0,nrow(Data.mon)-1,1)
     time     <- timeStep/48
     #endStep  <- startStep + nsteps[m]-1
+    # not sure why DateTime[1] doesn't include h:m:s
+    tempTime <- Data.mon$DateTime[1]
+    tempTime <- format(tempTime,'%Y-%m-%d %H:%M:%S')
     
-    print(paste(m,"Data date =",Data.mon$DateTime[1]))
+    print(paste(m,"Data date =",tempTime))
     names(Data.mon)
   
 #NetCDF output filename
@@ -516,7 +509,7 @@ lat  <- ncdf4::ncdim_def("lat","degrees_north", as.double(latSite), create_dimva
 lon <- ncdf4::ncdim_def("lon","degrees_east", as.double(lonSite), create_dimvar=TRUE)
 
 #Variables to output to netCDF
-time <- ncdf4::ncdim_def("time", paste("days since",Data.mon$DateTime[1]),
+time <- ncdf4::ncdim_def("time", paste("days since",tempTime),
                        vals=as.double(time),unlim=FALSE, create_dimvar=TRUE )
 LATIXY  <- ncdf4::ncvar_def("LATIXY", "degrees N", list(lat), mv,
                         longname="latitude", prec="double")
@@ -592,11 +585,11 @@ ncdf4::ncatt_put(ncnew, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALS
 
 #Close Netcdf file connection
 ncdf4::nc_close(ncnew)
-#Add step
-#startStep <- endStep + 1
-#Remove not needed variables
+
 remove(time, timeStep, fileOutNcdf, ncnew, Data.mon,
        FLDS,FSDS,RH,PRECTmms,PSRF,TBOT,WIND,ZBOT)
   } #End of monthloop
 
 #} #End of year loop
+
+DirOut
