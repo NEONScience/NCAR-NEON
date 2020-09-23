@@ -18,6 +18,7 @@
 #Dependencies
 #############################################################
 
+
 #Call the R HDF5 Library
 packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools")
 
@@ -40,21 +41,26 @@ options(stringsAsFactors=F)
 #Workflow parameters
 #############################################################
 #Which NEON site are we grabbing data from (4-letter ID)
-Site <- "HARV"
+Site <- "NIWO"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
 TimeAgr <- 30
 #Beginning date for data grabbing
-dateBgn <- "2019-01-01"
+dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2019-11-30"
+dateEnd <- "2019-12-31"
+
+# Run using less memory (but more time);
+lowmem <- TRUE 
+maxmonths <- 3 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
+
 
 #The version data for the FP standard conversion processing
 ver <- paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
 #Base directory for output
-DirOutBase <-paste0("~/eddy/data/CLM/",ver)
+DirOutBase <-paste0("~/Users/wwieder/Desktop/Working_files/NEON/NCAR_NEON/NEONforcing/",ver)
 #Download directory for HDF5 files from the API
 DirDnld=tempdir()
 
@@ -64,6 +70,7 @@ if("METHPARAFLOW" %in% base::names(base::Sys.getenv())) {
   dateBgn <- Sys.getenv("DATEBGN") 
   dateEnd <- Sys.getenv("DATEEND")
   DirOutBase <- Sys.getenv("DIROUT")
+  lowmem  <- Sys.getenv("LOWMEM")
 }
 
 
@@ -154,25 +161,89 @@ if(!base::is.null(metaSite$ZoneTime)) {
 #Initialize data List
 dataList <- list()
 
-#Read data from downloaded zip files
-dataList$dp04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp04", avg = 30)
-dataList$dp01 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp01", avg = 30)  
+#Read data from downloaded zip files and save it in a dataframe
+  if(lowmem == FALSE) {
+    # memory-intensive option, but faster
+    # Read in all data at one time
+    dataList$dp04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp04", avg = 30)
+    dataList$dp01 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp01", avg = 30)  
+    
+    # Create flux data.frame
+    dataDfFlux <-   data.frame(
+      "TIMESTAMP_START" = as.POSIXlt(dataList$dp04[[Site]]$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
+      "TIMESTAMP_END" = as.POSIXlt(dataList$dp04[[Site]]$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
+      "NEE"= dataList$dp04[[Site]]$data.fluxCo2.nsae.flux,#Net ecosystem exchange (turb + stor)
+      "LE" = dataList$dp04[[Site]]$data.fluxH2o.turb.flux, #Latent heat flux (turb)
+      "Ustar" = dataList$dp04[[Site]]$data.fluxMome.turb.veloFric, #Friction velocity
+      "H" = dataList$dp04[[Site]]$data.fluxTemp.turb.flux,#Sensible heat flux (turb)
+      "qfTurbFlow" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
+      "qfTurbH2oFinl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
+      "qfTurbCo2Finl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
+      "WS_MDS" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
+      #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
+      "Tair" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
+      , stringsAsFactors = FALSE)
+    
+  } else {
+    # Lower memory option: place zips in separate folders, read in data for each subdirectory 
+    # and create a dataframe for each. Then concatenate the dataframes.
+    
+    # make subdirectories with maxmonths months data in each
+    writeLines(paste0("Moving zips into subdirectories"))
+    ziplist <- list.files(paste0(DirDnld,"/filesToStack00200/"), full.names = TRUE)
+    zipgroups <- split(ziplist,ceiling(seq_along(ziplist)/maxmonths))
+    
+    sapply(names(zipgroups), function(x) {dir.create(paste0(DirDnld,"/filesToStack00200/",x))})
+    
+    # move zip files into subdirectories
+    lapply(seq_along(zipgroups), function(x) { 
+      folder <- names(zipgroups)[[x]]
+      print(folder)
+      newname <- gsub(pattern = "/filesToStack00200/", 
+                      replacement = paste0("/filesToStack00200/", folder), zipgroups[[x]])
+      file.rename(from = zipgroups[[x]], newname)
+      })
+    
+    # Run stackEddy for each subdirectory
+    writeLines(paste0("Extracting data"))
+    dataDfFlux_part <- vector(mode = "list", 
+                      length = length(list.dirs(paste0(DirDnld,"/filesToStack00200/"), 
+                                                               recursive = FALSE)))
 
-#Create flux data.frame
-dataDfFlux <-   data.frame(
-    "TIMESTAMP_START" = as.POSIXlt(dataList$dp04[[Site]]$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
-    "TIMESTAMP_END" = as.POSIXlt(dataList$dp04[[Site]]$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
-    "NEE"= dataList$dp04[[Site]]$data.fluxCo2.nsae.flux,#Net ecosystem exchange (turb + stor)
-    "LE" = dataList$dp04[[Site]]$data.fluxH2o.turb.flux, #Latent heat flux (turb)
-    "Ustar" = dataList$dp04[[Site]]$data.fluxMome.turb.veloFric, #Friction velocity
-    "H" = dataList$dp04[[Site]]$data.fluxTemp.turb.flux,#Sensible heat flux (turb)
-    "qfTurbFlow" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
-    "qfTurbH2oFinl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
-    "qfTurbCo2Finl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
-    "WS_MDS" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
-    #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
-    "Tair" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
-    , stringsAsFactors = FALSE)
+    for (i in seq_along(list.dirs(paste0(DirDnld,"/filesToStack00200/"), 
+                                  recursive = FALSE))) {
+      writeLines(paste0("Getting data from subdirectory ", i, "..."))
+      tmpList_04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/", i), level = "dp04", avg = 30)
+      tmpList_01 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/", i), level = "dp01", avg = 30)
+      
+      #Create flux data.frame for each subdirectory
+      writeLines(paste0("Adding flux data from folder ", i, " to the flux data.frame"))
+      dataDfFlux_part[[i]] <-   data.frame(
+        "TIMESTAMP_START" = as.POSIXlt(tmpList_04[[Site]]$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
+        "TIMESTAMP_END" = as.POSIXlt(tmpList_04[[Site]]$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
+        "NEE"= tmpList_04[[Site]]$data.fluxCo2.nsae.flux,#Net ecosystem exchange (turb + stor)
+        "LE" = tmpList_04[[Site]]$data.fluxH2o.turb.flux, #Latent heat flux (turb)
+        "Ustar" = tmpList_04[[Site]]$data.fluxMome.turb.veloFric, #Friction velocity
+        "H" = tmpList_04[[Site]]$data.fluxTemp.turb.flux,#Sensible heat flux (turb)
+        "qfTurbFlow" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
+        "qfTurbH2oFinl" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
+        "qfTurbCo2Finl" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
+        "WS_MDS" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
+        #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
+        "Tair" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
+        , stringsAsFactors = FALSE)
+    }
+    
+    # clean up
+    rm(tmpList_04, tmpList_01)
+    
+    # combine output
+    writeLines(paste0("Combining all ", i, " dataframes into one."))
+    dataDfFlux <- do.call(rbind, dataDfFlux_part)
+    }
+
+
+
 
 ###################################################################################
 #Time regularization if needed
