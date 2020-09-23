@@ -55,7 +55,7 @@ dateEnd <- "2019-12-31"
 # Run using less memory (but more time);
 lowmem <- TRUE 
 maxmonths <- 3 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
-
+user <- 'Will Wieder'
 
 #The version data for the FP standard conversion processing
 ver <- paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
@@ -583,10 +583,11 @@ ncdf4::ncatt_put(ncnew, NEE,"mode","time-dependent" ,prec=NA,verbose=FALSE,defin
 ncdf4::ncatt_put(ncnew, FSH,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, EFLX_LH_TOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, GPP,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, Rnet,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_on",date()       ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_by","David Durden",prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_from",fileOut        ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, Rnet,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, 0, "created_on",date()      ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, 0, "created_by",user,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, 0, "NEON site",Site         ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALSE,definemode=FALSE )
 
 #Close Netcdf file connection
@@ -594,7 +595,7 @@ ncdf4::nc_close(ncnew)
 #Add step
 #startStep <- endStep + 1
 #Remove not needed variables
-remove(endStep, time, timeStep, fileOutNcdf, ncnew, Data.mon,
+remove(time, timeStep, fileOutNcdf, ncnew, Data.mon,
        FLDS,FSDS,RH,PRECTmms,PSRF,TBOT,WIND,ZBOT)
   } #End of monthloop
 
