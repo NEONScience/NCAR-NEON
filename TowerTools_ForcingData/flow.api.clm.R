@@ -122,7 +122,7 @@ fileNameHdf5 <- base::list.files(path = DirExtr, pattern = "*.h5", full.names = 
 metaSite <- rhdf5::h5readAttributes(file = fileNameHdf5, name = Site)
 #Grab latitude and longitude from site metadata
 latSite <- metaSite$LatTow #Latitude of tower
-lonSite <- metaSite$LonTow #Longitude of tower
+lonSite <- 360 + metaSite$LonTow #Longitude of tower (degrees east)
 distTowSite <- metaSite$DistZaxsTow #Tower height
 #Tower top level in NEON DP number convention
 IdHor <- "000"
@@ -433,7 +433,7 @@ EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year='Year', Day='
 EddyProc.C <- sEddyProc$new(Site, EddyDataWithPosix.F, c('NEE','Rg','Tair','VPD','rH','LE','H','Ustar','Pa_MDS', 'FLDS_MDS','WS_MDS', 'PRECTmms_MDS', 'radNet'))
 
 #Set location information
-EddyProc.C$sSetLocationInfo(LatDeg=latSite, LongDeg=lonSite, TimeZoneHour = metaSite$TimeDiffUtcLst)
+EddyProc.C$sSetLocationInfo(LatDeg=latSite, LongDeg=metaSite$LonTow, TimeZoneHour = metaSite$TimeDiffUtcLst)
 
 #+++ Fill gaps in variables with MDS gap filling algorithm (without prior ustar filtering)
 EddyProc.C$sMDSGapFill('NEE', FillAll=TRUE) #Fill all values to estimate flux uncertainties
