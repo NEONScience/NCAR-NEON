@@ -41,13 +41,13 @@ options(stringsAsFactors=F)
 #Workflow parameters
 #############################################################
 #Which NEON site are we grabbing data from (4-letter ID)
-Site <- "NIWO"
+Site <- "SCBI"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
 TimeAgr <- 30
 #Beginning date for data grabbing
-dateBgn <- "2018-01-01"
+dateBgn <- "2017-01-01"
 
 #End date for date grabbing
 dateEnd <- "2019-12-31"
@@ -72,8 +72,6 @@ if("METHPARAFLOW" %in% base::names(base::Sys.getenv())) {
   DirOutBase <- Sys.getenv("DIROUT")
   lowmem  <- Sys.getenv("LOWMEM")
 }
-
-
 
 
 #############################################################
@@ -122,7 +120,7 @@ fileNameHdf5 <- base::list.files(path = DirExtr, pattern = "*.h5", full.names = 
 metaSite <- rhdf5::h5readAttributes(file = fileNameHdf5, name = Site)
 #Grab latitude and longitude from site metadata
 latSite <- metaSite$LatTow #Latitude of tower
-lonSite <- metaSite$LonTow #Longitude of tower
+lonSite <- 360 + metaSite$LonTow #Longitude of tower (degrees east)
 distTowSite <- metaSite$DistZaxsTow #Tower height
 #Tower top level in NEON DP number convention
 IdHor <- "000"
@@ -304,7 +302,11 @@ subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inL
 
 ##Grab data for data products using Noble package
 dataMet <- lapply(listDpNum, function(x){
-  try(expr = neonUtilities::loadByProduct(site = Site, dpID = x, startdate = as.character(dateBgn), enddate = as.character(dateEnd), package = Pack, avg = TimeAgr, check.size = FALSE), silent = TRUE)
+  try(expr = neonUtilities::loadByProduct(site = Site, dpID = x, 
+                                          startdate = as.character(dateBgn), 
+                                          enddate = as.character(dateEnd), 
+                                          package = Pack, avg = TimeAgr, check.size = FALSE), 
+      silent = TRUE)
   })
 
 #Check if primary precipitation exists at the site, if not change to secondary precip
@@ -400,7 +402,7 @@ writeLines(text = c(h1,h2), sep = "\n", con = conFile)
 #writeLines(text = unitDf, sep = "\t", con = conFile)
 #Write output in tab delimited format
 write.table(x = dataDf, file = conFile, sep = "\t", row.names = FALSE, col.names = FALSE)
-
+conFile
 #Close file connection
 close(conFile)
 
@@ -416,10 +418,10 @@ EddyData.F <- fLoadTXTIntoDataframe(fileOut)
 EddyData.F$rH[EddyData.F$rH > 100] <- 100
 #Threshold bounds to prevent Rg < 0
 EddyData.F$Rg[EddyData.F$Rg < 0] <- 0
-#Threshold bounds to prevent NEE > 100
-EddyData.F$NEE[EddyData.F$NEE > 100] <- NA
-#Threshold bounds to prevent NEE < -100
-EddyData.F$NEE[EddyData.F$NEE < -100] <- NA
+#Threshold bounds to prevent NEE > 50
+EddyData.F$NEE[EddyData.F$NEE > 50] <- NA
+#Threshold bounds to prevent NEE < -50
+EddyData.F$NEE[EddyData.F$NEE < -50] <- NA
 
 #+++ If not provided, calculate VPD from Tair and rH
 EddyData.F <- cbind(EddyData.F,VPD=fCalcVPDfromRHandTair(EddyData.F$rH, EddyData.F$Tair))
@@ -433,7 +435,7 @@ EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year='Year', Day='
 EddyProc.C <- sEddyProc$new(Site, EddyDataWithPosix.F, c('NEE','Rg','Tair','VPD','rH','LE','H','Ustar','Pa_MDS', 'FLDS_MDS','WS_MDS', 'PRECTmms_MDS', 'radNet'))
 
 #Set location information
-EddyProc.C$sSetLocationInfo(LatDeg=latSite, LongDeg=lonSite, TimeZoneHour = metaSite$TimeDiffUtcLst)
+EddyProc.C$sSetLocationInfo(LatDeg=latSite, LongDeg=metaSite$LonTow, TimeZoneHour = metaSite$TimeDiffUtcLst)
 
 #+++ Fill gaps in variables with MDS gap filling algorithm (without prior ustar filtering)
 EddyProc.C$sMDSGapFill('NEE', FillAll=TRUE) #Fill all values to estimate flux uncertainties
@@ -450,16 +452,21 @@ EddyProc.C$sMDSGapFill('FLDS_MDS', FillAll=FALSE)
 EddyProc.C$sMDSGapFill('Rg', FillAll=FALSE) 
 EddyProc.C$sMDSGapFill('radNet', FillAll=FALSE) 
 EddyProc.C$sMRFluxPartition()
+# SCBI won't calculate GPP, unsure why?
+
 #+++ Export gap filled and partitioned data to standard data frame
 FilledEddyData.F <- EddyProc.C$sExportResults()
 
+
 #Grab just the filled data products
 dataClm <- FilledEddyData.F[,grep(pattern = "_f$", x = names(FilledEddyData.F))]
-
+names(dataClm)
 #Grab the POSIX timestamp
 dataClm$DateTime <- EddyDataWithPosix.F$DateTime - lubridate::minutes(30) # putting back to time at the beginning of the measurement period
 
 names(dataClm) <- c("NEE", "LE", "H", "Ustar", "TBOT", "VPD", "RH", "WIND", "PRECTmms", "PSRF",  "FLDS", "FSDS", "radNet", "GPP", "DateTime")
+# use if GPP can't be estimated
+#names(dataClm) <- c("NEE", "LE", "H", "Ustar", "TBOT", "VPD", "RH", "WIND", "PRECTmms", "PSRF",  "FLDS", "FSDS", "radNet", "DateTime")
 
 #Convert degC to K for temperature
 dataClm$TBOT <- dataClm$TBOT + 273.15
@@ -474,6 +481,17 @@ dataClm$ZBOT <- rep(distTowSite,nrow(dataClm))
 #Year month combination for data filtering
 dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m", tz='UTC')
 dataClm$yearMon[1:20]
+
+# plot input data 
+plot(dataClm$DateTime, dataClm$TBOT, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$RH, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$WIND, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$PRECTmms, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$PSRF, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$FLDS, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$FSDS, pch=16,cex=0.2, main=Site)
+
+
 ##############################################################################
 #Write output to CLM
 ##############################################################################
