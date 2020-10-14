@@ -18,6 +18,7 @@
 #Dependencies
 #############################################################
 
+
 #Call the R HDF5 Library
 packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools")
 
@@ -40,21 +41,26 @@ options(stringsAsFactors=F)
 #Workflow parameters
 #############################################################
 #Which NEON site are we grabbing data from (4-letter ID)
-Site <- "NIWO"
+Site <- "SCBI"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
 TimeAgr <- 30
 #Beginning date for data grabbing
-dateBgn <- "2018-01-01"
+dateBgn <- "2017-01-01"
 
 #End date for date grabbing
-dateEnd <- "2018-12-31"
+dateEnd <- "2019-12-31"
+
+# Run using less memory (but more time);
+lowmem <- TRUE 
+maxmonths <- 3 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
+user <- 'Will Wieder'
 
 #The version data for the FP standard conversion processing
 ver <- paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
 #Base directory for output
-DirOutBase <-paste0("~/eddy/data/CLM/",ver)
+DirOutBase <-paste0("~/Users/wwieder/Desktop/Working_files/NEON/NCAR_NEON/NEONforcing/",ver)
 #Download directory for HDF5 files from the API
 DirDnld=tempdir()
 
@@ -64,9 +70,8 @@ if("METHPARAFLOW" %in% base::names(base::Sys.getenv())) {
   dateBgn <- Sys.getenv("DATEBGN") 
   dateEnd <- Sys.getenv("DATEEND")
   DirOutBase <- Sys.getenv("DIROUT")
+  lowmem  <- Sys.getenv("LOWMEM")
 }
-
-
 
 
 #############################################################
@@ -115,7 +120,7 @@ fileNameHdf5 <- base::list.files(path = DirExtr, pattern = "*.h5", full.names = 
 metaSite <- rhdf5::h5readAttributes(file = fileNameHdf5, name = Site)
 #Grab latitude and longitude from site metadata
 latSite <- metaSite$LatTow #Latitude of tower
-lonSite <- metaSite$LonTow #Longitude of tower
+lonSite <- 360 + metaSite$LonTow #Longitude of tower (degrees east)
 distTowSite <- metaSite$DistZaxsTow #Tower height
 #Tower top level in NEON DP number convention
 IdHor <- "000"
@@ -123,7 +128,7 @@ IdVer <-paste0("0",metaSite$LvlMeasTow,"0")
 LvlTowr <- paste0(IdHor,IdVer)
 
 # time difference between local time and UTC
-if(!base::is.null(Para$Site$ZoneTime)) {
+if(!base::is.null(metaSite$ZoneTime)) {
   
   # start date and time of dataset in UTC
   timeTmp01 <- base::as.POSIXlt(x = base::paste0(dateBgn, "T00:00:00Z"), format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
@@ -136,7 +141,7 @@ if(!base::is.null(Para$Site$ZoneTime)) {
     
   } else {
     
-    base::warning(base::paste("Time zone attribute", Para$Site$ZoneTime,
+    base::warning(base::paste("Time zone attribute", metaSite$ZoneTime,
                               "not available in R base::OlsonNames() database. Continue with local time equals UTC time."))
     
   }}
@@ -154,30 +159,98 @@ if(!base::is.null(Para$Site$ZoneTime)) {
 #Initialize data List
 dataList <- list()
 
-#Read data from downloaded zip files
-dataList$dp04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp04", avg = 30)
-dataList$dp01 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp01", avg = 30)  
+#Read data from downloaded zip files and save it in a dataframe
+  if(lowmem == FALSE) {
+    # memory-intensive option, but faster
+    # Read in all data at one time
+    dataList$dp04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp04", avg = 30)
+    dataList$dp01 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp01", avg = 30)  
+    
+    # Create flux data.frame
+    dataDfFlux <-   data.frame(
+      "TIMESTAMP_START" = as.POSIXlt(dataList$dp04[[Site]]$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
+      "TIMESTAMP_END" = as.POSIXlt(dataList$dp04[[Site]]$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
+      "NEE"= dataList$dp04[[Site]]$data.fluxCo2.nsae.flux,#Net ecosystem exchange (turb + stor)
+      "LE" = dataList$dp04[[Site]]$data.fluxH2o.turb.flux, #Latent heat flux (turb)
+      "Ustar" = dataList$dp04[[Site]]$data.fluxMome.turb.veloFric, #Friction velocity
+      "H" = dataList$dp04[[Site]]$data.fluxTemp.turb.flux,#Sensible heat flux (turb)
+      "qfTurbFlow" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
+      "qfTurbH2oFinl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
+      "qfTurbCo2Finl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
+      "WS_MDS" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
+      #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
+      "Tair" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
+      , stringsAsFactors = FALSE)
+    
+  } else {
+    # Lower memory option: place zips in separate folders, read in data for each subdirectory 
+    # and create a dataframe for each. Then concatenate the dataframes.
+    
+    # make subdirectories with maxmonths months data in each
+    writeLines(paste0("Moving zips into subdirectories"))
+    ziplist <- list.files(paste0(DirDnld,"/filesToStack00200/"), full.names = TRUE)
+    zipgroups <- split(ziplist,ceiling(seq_along(ziplist)/maxmonths))
+    
+    sapply(names(zipgroups), function(x) {dir.create(paste0(DirDnld,"/filesToStack00200/",x))})
+    
+    # move zip files into subdirectories
+    lapply(seq_along(zipgroups), function(x) { 
+      folder <- names(zipgroups)[[x]]
+      print(folder)
+      newname <- gsub(pattern = "/filesToStack00200/", 
+                      replacement = paste0("/filesToStack00200/", folder), zipgroups[[x]])
+      file.rename(from = zipgroups[[x]], newname)
+      })
+    
+    # Run stackEddy for each subdirectory
+    writeLines(paste0("Extracting data"))
+    dataDfFlux_part <- vector(mode = "list", 
+                      length = length(list.dirs(paste0(DirDnld,"/filesToStack00200/"), 
+                                                               recursive = FALSE)))
 
-#Create flux data.frame
-dataDfFlux <-   data.frame(
-    "TIMESTAMP_START" = as.POSIXlt(dataList$dp04[[Site]]$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
-    "TIMESTAMP_END" = as.POSIXlt(dataList$dp04[[Site]]$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
-    "NEE"= dataList$dp04[[Site]]$data.fluxCo2.nsae.flux,#Net ecosystem exchange (turb + stor)
-    "LE" = dataList$dp04[[Site]]$data.fluxH2o.turb.flux, #Latent heat flux (turb)
-    "Ustar" = dataList$dp04[[Site]]$data.fluxMome.turb.veloFric, #Friction velocity
-    "H" = dataList$dp04[[Site]]$data.fluxTemp.turb.flux,#Sensible heat flux (turb)
-    "qfTurbFlow" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
-    "qfTurbH2oFinl" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
-    "qfTurbCo2Finl" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
-    "WS_MDS" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
-    #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
-    "Tair" = dataList$dp01[[Site]][which(dataList$dp01$NIWO$verticalPosition == IdVer), "data.soni.tempAir.mean"]
-    , stringsAsFactors = FALSE)
+    for (i in seq_along(list.dirs(paste0(DirDnld,"/filesToStack00200/"), 
+                                  recursive = FALSE))) {
+      writeLines(paste0("Getting data from subdirectory ", i, "..."))
+      tmpList_04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/", i), level = "dp04", avg = 30)
+      tmpList_01 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/", i), level = "dp01", avg = 30)
+      
+      #Create flux data.frame for each subdirectory
+      writeLines(paste0("Adding flux data from folder ", i, " to the flux data.frame"))
+      dataDfFlux_part[[i]] <-   data.frame(
+        "TIMESTAMP_START" = as.POSIXlt(tmpList_04[[Site]]$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
+        "TIMESTAMP_END" = as.POSIXlt(tmpList_04[[Site]]$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
+        "NEE"= tmpList_04[[Site]]$data.fluxCo2.nsae.flux,#Net ecosystem exchange (turb + stor)
+        "LE" = tmpList_04[[Site]]$data.fluxH2o.turb.flux, #Latent heat flux (turb)
+        "Ustar" = tmpList_04[[Site]]$data.fluxMome.turb.veloFric, #Friction velocity
+        "H" = tmpList_04[[Site]]$data.fluxTemp.turb.flux,#Sensible heat flux (turb)
+        "qfTurbFlow" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
+        "qfTurbH2oFinl" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
+        "qfTurbCo2Finl" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
+        "WS_MDS" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
+        #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
+        "Tair" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
+        , stringsAsFactors = FALSE)
+    }
+    
+    # clean up
+    rm(tmpList_04, tmpList_01)
+    
+    # combine output
+    writeLines(paste0("Combining all ", i, " dataframes into one."))
+    dataDfFlux <- do.call(rbind, dataDfFlux_part)
+    }
+
+
+
 
 ###################################################################################
 #Time regularization if needed
 # Regularize timeseries to 30 minutes in case missing data after CI processing
-timeRglr <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataDfFlux$TIMESTAMP_START), dataMeas = dataDfFlux, BgnRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_START[1]), EndRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_END[length(dataDfFlux$TIMESTAMP_END)]), TzRglr = "UTC", FreqRglr = 1/(60*30))
+timeRglr <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataDfFlux$TIMESTAMP_START, tz = "UTC"), 
+                                  dataMeas = dataDfFlux, 
+                                  BgnRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_START[1], tz = "UTC"), 
+                                  EndRglr = as.POSIXlt(dataDfFlux$TIMESTAMP_END[length(dataDfFlux$TIMESTAMP_END)], tz = "UTC"), 
+                                  TzRglr = "UTC", FreqRglr = 1/(60*30))
 # 
 # #Reassign data to data.frame
 dataDfFlux <- timeRglr$dataRglr
@@ -229,7 +302,11 @@ subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inL
 
 ##Grab data for data products using Noble package
 dataMet <- lapply(listDpNum, function(x){
-  try(expr = neonUtilities::loadByProduct(site = Site, dpID = x, startdate = as.character(dateBgn), enddate = as.character(dateEnd), package = Pack, avg = TimeAgr, check.size = FALSE), silent = TRUE)
+  try(expr = neonUtilities::loadByProduct(site = Site, dpID = x, 
+                                          startdate = as.character(dateBgn), 
+                                          enddate = as.character(dateEnd), 
+                                          package = Pack, avg = TimeAgr, check.size = FALSE), 
+      silent = TRUE)
   })
 
 #Check if primary precipitation exists at the site, if not change to secondary precip
@@ -256,7 +333,11 @@ dataMetSub$rH <- dataMetSub$rH[dataMetSub$rH$horizontalPosition == "003",]
 
 #time regularization of met data
 dataMetSubRglr <- lapply(names(dataMetSub), function(x){
-timeRglrMet <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataMetSub[[x]]$startDateTime), dataMeas = dataMetSub[[x]], BgnRglr = dataDfFlux$TIMESTAMP[1] - lubridate::minutes(30), EndRglr = dataDfFlux$TIMESTAMP[length(dataDfFlux$TIMESTAMP)] - lubridate::minutes(30), TzRglr = "UTC", FreqRglr = 1/(60*30))
+timeRglrMet <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataMetSub[[x]]$startDateTime), 
+                                     dataMeas = dataMetSub[[x]], 
+                                     BgnRglr = dataDfFlux$TIMESTAMP[1] - lubridate::minutes(30), 
+                                     EndRglr = dataDfFlux$TIMESTAMP[length(dataDfFlux$TIMESTAMP)] - lubridate::minutes(30), 
+                                     TzRglr = "UTC", FreqRglr = 1/(60*30))
 
 return(timeRglrMet$dataRglr)
 })#End lapply for time regularization of met data
@@ -321,7 +402,7 @@ writeLines(text = c(h1,h2), sep = "\n", con = conFile)
 #writeLines(text = unitDf, sep = "\t", con = conFile)
 #Write output in tab delimited format
 write.table(x = dataDf, file = conFile, sep = "\t", row.names = FALSE, col.names = FALSE)
-
+conFile
 #Close file connection
 close(conFile)
 
@@ -337,16 +418,16 @@ EddyData.F <- fLoadTXTIntoDataframe(fileOut)
 EddyData.F$rH[EddyData.F$rH > 100] <- 100
 #Threshold bounds to prevent Rg < 0
 EddyData.F$Rg[EddyData.F$Rg < 0] <- 0
-#Threshold bounds to prevent NEE > 100
-EddyData.F$NEE[EddyData.F$NEE > 100] <- NA
-#Threshold bounds to prevent NEE < -100
-EddyData.F$NEE[EddyData.F$NEE < -100] <- NA
+#Threshold bounds to prevent NEE > 50
+EddyData.F$NEE[EddyData.F$NEE > 50] <- NA
+#Threshold bounds to prevent NEE < -50
+EddyData.F$NEE[EddyData.F$NEE < -50] <- NA
 
 #+++ If not provided, calculate VPD from Tair and rH
 EddyData.F <- cbind(EddyData.F,VPD=fCalcVPDfromRHandTair(EddyData.F$rH, EddyData.F$Tair))
 
 #+++ Add time stamp in POSIX time format
-EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year.s='Year', Day.s='DoY', Hour.s='Hour')
+EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year='Year', Day='DoY', Hour='Hour')
 
 
 #+++ Initalize R5 reference class sEddyProc for processing of eddy data
@@ -354,33 +435,38 @@ EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year.s='Year', Day
 EddyProc.C <- sEddyProc$new(Site, EddyDataWithPosix.F, c('NEE','Rg','Tair','VPD','rH','LE','H','Ustar','Pa_MDS', 'FLDS_MDS','WS_MDS', 'PRECTmms_MDS', 'radNet'))
 
 #Set location information
-EddyProc.C$sSetLocationInfo(LatDeg=latSite, LongDeg=lonSite, TimeZoneHour = metaSite$TimeDiffUtcLst)
+EddyProc.C$sSetLocationInfo(LatDeg=latSite, LongDeg=metaSite$LonTow, TimeZoneHour = metaSite$TimeDiffUtcLst)
 
 #+++ Fill gaps in variables with MDS gap filling algorithm (without prior ustar filtering)
-EddyProc.C$sMDSGapFill('NEE', FillAll.b=TRUE) #Fill all values to estimate flux uncertainties
-EddyProc.C$sMDSGapFill('LE', FillAll.b=TRUE)
-EddyProc.C$sMDSGapFill('H', FillAll.b=TRUE)
-EddyProc.C$sMDSGapFill('Ustar', FillAll.b=TRUE)
-EddyProc.C$sMDSGapFill('Tair', FillAll.b=FALSE)  
-EddyProc.C$sMDSGapFill('VPD',    FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('rH',     FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('WS_MDS', FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('PRECTmms_MDS', FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('Pa_MDS', FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('FLDS_MDS', FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('Rg', FillAll.b=FALSE) 
-EddyProc.C$sMDSGapFill('radNet', FillAll.b=FALSE) 
+EddyProc.C$sMDSGapFill('NEE', FillAll=TRUE) #Fill all values to estimate flux uncertainties
+EddyProc.C$sMDSGapFill('LE', FillAll=TRUE)
+EddyProc.C$sMDSGapFill('H', FillAll=TRUE)
+EddyProc.C$sMDSGapFill('Ustar', FillAll=TRUE)
+EddyProc.C$sMDSGapFill('Tair', FillAll=FALSE)  
+EddyProc.C$sMDSGapFill('VPD',    FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('rH',     FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('WS_MDS', FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('PRECTmms_MDS', FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('Pa_MDS', FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('FLDS_MDS', FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('Rg', FillAll=FALSE) 
+EddyProc.C$sMDSGapFill('radNet', FillAll=FALSE) 
 EddyProc.C$sMRFluxPartition()
+# SCBI won't calculate GPP, unsure why?
+
 #+++ Export gap filled and partitioned data to standard data frame
 FilledEddyData.F <- EddyProc.C$sExportResults()
 
+
 #Grab just the filled data products
 dataClm <- FilledEddyData.F[,grep(pattern = "_f$", x = names(FilledEddyData.F))]
-
+names(dataClm)
 #Grab the POSIX timestamp
 dataClm$DateTime <- EddyDataWithPosix.F$DateTime - lubridate::minutes(30) # putting back to time at the beginning of the measurement period
 
 names(dataClm) <- c("NEE", "LE", "H", "Ustar", "TBOT", "VPD", "RH", "WIND", "PRECTmms", "PSRF",  "FLDS", "FSDS", "radNet", "GPP", "DateTime")
+# use if GPP can't be estimated
+#names(dataClm) <- c("NEE", "LE", "H", "Ustar", "TBOT", "VPD", "RH", "WIND", "PRECTmms", "PSRF",  "FLDS", "FSDS", "radNet", "DateTime")
 
 #Convert degC to K for temperature
 dataClm$TBOT <- dataClm$TBOT + 273.15
@@ -393,36 +479,29 @@ attributes(obj = dataClm$PSRF)$units <- "Pa"
 dataClm$ZBOT <- rep(distTowSite,nrow(dataClm))
 
 #Year month combination for data filtering
-dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m")
+dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m", tz='UTC')
+dataClm$yearMon[1:20]
+
+# plot input data 
+plot(dataClm$DateTime, dataClm$TBOT, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$RH, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$WIND, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$PRECTmms, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$PSRF, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$FLDS, pch=16,cex=0.2, main=Site)
+plot(dataClm$DateTime, dataClm$FSDS, pch=16,cex=0.2, main=Site)
+
 
 ##############################################################################
 #Write output to CLM
 ##############################################################################
 
-#Define the timesteps for data output
-# year       <- unique(lubridate::year(dataClm$DateTime + lubridate::days(1))) 
-# mon        <- unique(lubridate::month(dataClm$DateTime + lubridate::days(1)))
-# regu_days  <- c(31,28,31,30,31,30,31,31,30,31,30,31)
-# leap_days  <- c(31,29,31,30,31,30,31,31,30,31,30,31)
-# regu_steps <- regu_days * 48
-# leap_steps <- leap_days * 48
-# nyear <- length(year)
-
 #Define missing value fill
 mv <- -9999.  
 # startStep <- 1
 
-#Loop around years of data
-# for (y in ) {
-#   #  y <- 1
-#   if(year[y]==2008 || year[y]==2012) {
-#     nsteps <- leap_steps
-#   } else {
-#     nsteps <- regu_steps
-#   }
-
 #Set of year/month combinations for netCDF output
-setYearMon <- unique(strftime(dataClm$DateTime, "%Y-%m"))
+setYearMon <- unique(strftime(dataClm$DateTime, "%Y-%m", tz='UTC'))
 
   for (m in setYearMon) {
     #m <- setYearMon[1] #for testing
@@ -430,8 +509,11 @@ setYearMon <- unique(strftime(dataClm$DateTime, "%Y-%m"))
     timeStep <- seq(0,nrow(Data.mon)-1,1)
     time     <- timeStep/48
     #endStep  <- startStep + nsteps[m]-1
+    # not sure why DateTime[1] doesn't include h:m:s
+    tempTime <- Data.mon$DateTime[1]
+    tempTime <- format(tempTime,'%Y-%m-%d %H:%M:%S')
     
-    print(paste(m,"Data date =",Data.mon$DateTime[1]))
+    print(paste(m,"Data date =",tempTime))
     names(Data.mon)
   
 #NetCDF output filename
@@ -445,7 +527,7 @@ lat  <- ncdf4::ncdim_def("lat","degrees_north", as.double(latSite), create_dimva
 lon <- ncdf4::ncdim_def("lon","degrees_east", as.double(lonSite), create_dimvar=TRUE)
 
 #Variables to output to netCDF
-time <- ncdf4::ncdim_def("time", paste("days since",Data.mon$DateTime[1]),
+time <- ncdf4::ncdim_def("time", paste("days since",tempTime),
                        vals=as.double(time),unlim=FALSE, create_dimvar=TRUE )
 LATIXY  <- ncdf4::ncvar_def("LATIXY", "degrees N", list(lat), mv,
                         longname="latitude", prec="double")
@@ -512,19 +594,20 @@ ncdf4::ncatt_put(ncnew, NEE,"mode","time-dependent" ,prec=NA,verbose=FALSE,defin
 ncdf4::ncatt_put(ncnew, FSH,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, EFLX_LH_TOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, GPP,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, Rnet,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_on",date()       ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_by","David Durden",prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_from",fileOut        ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, Rnet,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, 0, "created_on",date()      ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, 0, "created_by",user,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncnew, 0, "NEON site",Site         ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncnew, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALSE,definemode=FALSE )
 
 #Close Netcdf file connection
 ncdf4::nc_close(ncnew)
-#Add step
-#startStep <- endStep + 1
-#Remove not needed variables
-remove(endStep, time, timeStep, fileOutNcdf, ncnew, Data.mon,
+
+remove(time, timeStep, fileOutNcdf, ncnew, Data.mon,
        FLDS,FSDS,RH,PRECTmms,PSRF,TBOT,WIND,ZBOT)
   } #End of monthloop
 
 #} #End of year loop
+
+DirOut
