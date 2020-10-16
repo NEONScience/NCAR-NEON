@@ -10,3 +10,4 @@ modify and run `/TowerTools_ForcingData/flow.api.clm.R`  This code does the foll
 - Collates NEON data from API, 
 - Gap-filling with ReddyProc, and 
 - Packages output in NCAR CLM netcdf format
+- Makes simple plots to highlight missing data fields
