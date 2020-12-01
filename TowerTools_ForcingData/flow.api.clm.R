@@ -20,7 +20,8 @@
 
 
 #Call the R HDF5 Library
-packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools")
+packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools",'reshape2',
+             'ggplot2','tidyverse','gridExtra','knitr')
 
 #Install and load all required packages
 lapply(packReq, function(x) {
@@ -31,7 +32,8 @@ lapply(packReq, function(x) {
   }})
 
 #Install packages from github repos
-devtools::install_github(c("NEONScience/eddy4R/pack/eddy4R.base", "NEONScience/NEON-utilities/neonUtilities"))
+devtools::install_github(c("NEONScience/eddy4R/pack/eddy4R.base", 
+                           "NEONScience/NEON-utilities/neonUtilities"))
 
 #Setup Environment
 options(stringsAsFactors=F)
@@ -40,27 +42,28 @@ options(stringsAsFactors=F)
 #############################################################
 #Workflow parameters
 #############################################################
-#Which NEON site are we grabbing data from (4-letter ID)
+#WhOSBSich NEON site are we grabbing data from (4-letter ID)
 Site <- "SCBI"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
 TimeAgr <- 30
 #Beginning date for data grabbing
-dateBgn <- "2017-01-01"
+dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2019-12-31"
+dateEnd <- "2020-01-31"
 
 # Run using less memory (but more time);
+# if lowmem == TRUE, how many months of data should stackEddy handle at a time?
 lowmem <- TRUE 
-maxmonths <- 3 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
+maxmonths <- 3 
 user <- 'Will Wieder'
 
 #The version data for the FP standard conversion processing
-ver <- paste0("v",format(Sys.time(), "%Y%m%dT%H%m"))
+ver <- paste0("v",format(Sys.time(), "%Y%m%d"))
 #Base directory for output
-DirOutBase <-paste0("~/Users/wwieder/Desktop/Working_files/NEON/NCAR_NEON/NEONforcing/",ver)
+DirOutBase <-paste0("~/Desktop/Working_files/NEON/NCAR_NEON/NEONforcing/",ver)
 #Download directory for HDF5 files from the API
 DirDnld=tempdir()
 
@@ -106,7 +109,8 @@ neonUtilities::zipsByProduct(dpID=idDpFlux, package=Pack,
                              check.size=F)
 
 #Grab one zip file for the site to extract metadata and unzip
-zipFile <- base::list.files(paste0(DirDnld,"/filesToStack00200"), pattern = ".zip", full.names = TRUE)[1]
+zipFile <- base::list.files(paste0(DirDnld,"/filesToStack00200"), pattern = ".zip", 
+                            full.names = TRUE)[1]
 utils::unzip(zipFile, exdir = DirExtr)
 
 #Get HDF5 filename
@@ -122,6 +126,7 @@ metaSite <- rhdf5::h5readAttributes(file = fileNameHdf5, name = Site)
 latSite <- metaSite$LatTow #Latitude of tower
 lonSite <- 360 + metaSite$LonTow #Longitude of tower (degrees east)
 distTowSite <- metaSite$DistZaxsTow #Tower height
+
 #Tower top level in NEON DP number convention
 IdHor <- "000"
 IdVer <-paste0("0",metaSite$LvlMeasTow,"0")
@@ -131,7 +136,8 @@ LvlTowr <- paste0(IdHor,IdVer)
 if(!base::is.null(metaSite$ZoneTime)) {
   
   # start date and time of dataset in UTC
-  timeTmp01 <- base::as.POSIXlt(x = base::paste0(dateBgn, "T00:00:00Z"), format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
+  timeTmp01 <- base::as.POSIXlt(x = base::paste0(dateBgn, "T00:00:00Z"), 
+                                format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
   timeTmp02 <- timeTmp01
   
   # assign local timezone attribute, if available in database
@@ -163,8 +169,10 @@ dataList <- list()
   if(lowmem == FALSE) {
     # memory-intensive option, but faster
     # Read in all data at one time
-    dataList$dp04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp04", avg = 30)
-    dataList$dp01 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp01", avg = 30)  
+    dataList$dp04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), 
+                                              level = "dp04", avg = 30)
+    dataList$dp01 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), 
+                                              level = "dp01", avg = 30)  
     
     # Create flux data.frame
     dataDfFlux <-   data.frame(
@@ -453,24 +461,31 @@ EddyProc.C$sMDSGapFill('Rg', FillAll=FALSE)
 EddyProc.C$sMDSGapFill('radNet', FillAll=FALSE) 
 EddyProc.C$sMRFluxPartition()
 # SCBI won't calculate GPP, unsure why?
+# KONZ won't calculate GPP, 
+#      "Detected following columns in dataset to be non numeric: FP_VARnight!"
 
 #+++ Export gap filled and partitioned data to standard data frame
 FilledEddyData.F <- EddyProc.C$sExportResults()
 
 
-#Grab just the filled data products
+#Grab just the filled data products & rename variables
 dataClm <- FilledEddyData.F[,grep(pattern = "_f$", x = names(FilledEddyData.F))]
-names(dataClm)
+
 #Grab the POSIX timestamp
 dataClm$DateTime <- EddyDataWithPosix.F$DateTime - lubridate::minutes(30) # putting back to time at the beginning of the measurement period
-
-names(dataClm) <- c("NEE", "LE", "H", "Ustar", "TBOT", "VPD", "RH", "WIND", "PRECTmms", "PSRF",  "FLDS", "FSDS", "radNet", "GPP", "DateTime")
-# use if GPP can't be estimated
-#names(dataClm) <- c("NEE", "LE", "H", "Ustar", "TBOT", "VPD", "RH", "WIND", "PRECTmms", "PSRF",  "FLDS", "FSDS", "radNet", "DateTime")
+names(dataClm) <- str_remove(names(dataClm), '_f')
+names(dataClm) <- str_remove(names(dataClm), '_MDS')
+names(dataClm) <- str_replace(names(dataClm), 'Tair','TBOT')
+names(dataClm) <- str_replace(names(dataClm),'WS','WIND')
+names(dataClm) <- str_replace(names(dataClm),'rH','RH')
+names(dataClm) <- str_replace(names(dataClm),'Pa','PSRF')
+names(dataClm) <- str_replace(names(dataClm),'Rg','FSDS')
+names(dataClm)
 
 #Convert degC to K for temperature
 dataClm$TBOT <- dataClm$TBOT + 273.15
 attributes(obj = dataClm$TBOT)$units <- "K"
+
 #Convert kPa to Pa for pressure
 dataClm$PSRF <- dataClm$PSRF * 1000.0
 attributes(obj = dataClm$PSRF)$units <- "Pa"
@@ -481,16 +496,6 @@ dataClm$ZBOT <- rep(distTowSite,nrow(dataClm))
 #Year month combination for data filtering
 dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m", tz='UTC')
 dataClm$yearMon[1:20]
-
-# plot input data 
-plot(dataClm$DateTime, dataClm$TBOT, pch=16,cex=0.2, main=Site)
-plot(dataClm$DateTime, dataClm$RH, pch=16,cex=0.2, main=Site)
-plot(dataClm$DateTime, dataClm$WIND, pch=16,cex=0.2, main=Site)
-plot(dataClm$DateTime, dataClm$PRECTmms, pch=16,cex=0.2, main=Site)
-plot(dataClm$DateTime, dataClm$PSRF, pch=16,cex=0.2, main=Site)
-plot(dataClm$DateTime, dataClm$FLDS, pch=16,cex=0.2, main=Site)
-plot(dataClm$DateTime, dataClm$FSDS, pch=16,cex=0.2, main=Site)
-
 
 ##############################################################################
 #Write output to CLM
@@ -520,7 +525,7 @@ setYearMon <- unique(strftime(dataClm$DateTime, "%Y-%m", tz='UTC'))
 fileOutNcdf <- paste(DirOut,"/",m,".nc", sep = "")
   #sub(pattern = ".txt", replacement = ".nc", fileOut)
 
-
+DirOut
 
 # define the netcdf coordinate variables (name, units, type)
 lat  <- ncdf4::ncdim_def("lat","degrees_north", as.double(latSite), create_dimvar=TRUE)
@@ -578,7 +583,7 @@ ncnew <- ncdf4::nc_create(fileOutNcdf, list(LATIXY,LONGXY,FLDS,FSDS,PRECTmms,RH,
  ncdf4::ncvar_put(ncnew, NEE, Data.mon$NEE)
  ncdf4::ncvar_put(ncnew, FSH, Data.mon$H)
  ncdf4::ncvar_put(ncnew, EFLX_LH_TOT, Data.mon$LE)
- ncdf4::ncvar_put(ncnew, GPP, Data.mon$GPP)
+ #ncdf4::ncvar_put(ncnew, GPP, Data.mon$GPP)
  ncdf4::ncvar_put(ncnew, Rnet, Data.mon$radNet)
 #add attributes
 #ncdf4::ncatt_put(ncnew, time,"calendar", "gregorian" ,prec=NA,verbose=FALSE,definemode=FALSE )
@@ -610,4 +615,59 @@ remove(time, timeStep, fileOutNcdf, ncnew, Data.mon,
 
 #} #End of year loop
 
+##############################################################################
+# plot input data
+# this could be done better, but will work for now
+##############################################################################
+# example from https://felixfan.github.io/stacking-plots-same-x/
+mm <- melt(subset(dataClm, select=c(DateTime,TBOT, RH,WIND,PRECTmms, PSRF,FLDS,FSDS)), id.var="DateTime")
+ggplot(mm, aes(x = DateTime, y = value)) + 
+  geom_line(aes(color = variable)) + 
+  facet_grid(variable ~ ., scales = "free_y") + 
+  theme(legend.position = "none") +
+  ggtitle(Site)
+
+ggsave(paste0(DirOut,"/",Site,"_forcing.pdf"))
+
+# visualize missing data
+# example from https://www.kaggle.com/jenslaufer/missing-value-visualization-with-ggplot2-and-dplyr
+# see also https://stackoverflow.com/questions/57962514/geom-raster-to-visualize-missing-values-with-additional-colorcode
+
+
+missing.values <- dataClm %>%
+  gather(key = "key", value = "val") %>%
+  mutate(is.missing = is.na(val)) %>%
+  group_by(key, is.missing) %>%
+  summarise(num.missing = n()) %>%
+  filter(is.missing==T) %>%
+  select(-is.missing) %>%
+  arrange(desc(num.missing)) 
+
+missing.values  %>% kable()
+missing.values %>%
+  ggplot() +
+  geom_bar(aes(x=key, y=num.missing), stat = 'identity') +
+  labs(x='variable', y="number of missing values", 
+       title=paste0('Number of missing values ',Site) ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(paste0(DirOut,"/",Site,"_missing.pdf"))
+
+row.plot <- dataClm %>%
+  mutate(id = row_number()) %>%
+  gather(-id, key = "key", value = "val") %>%
+  mutate(isna = is.na(val)) %>%
+  ggplot(aes(key, id, fill = isna)) +
+  geom_raster(alpha=0.8) +
+  scale_fill_manual(name = "",
+                    values = c('steelblue', 'tomato3'),
+                    labels = c("Present", "Missing")) +
+  scale_x_discrete(limits = levels) +
+  labs(x = "Variable",
+       y = "Row Number", title = "Missing values in rows") +
+  coord_flip()
+
+row.plot
+
 DirOut
+
