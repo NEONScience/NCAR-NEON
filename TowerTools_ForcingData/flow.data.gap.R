@@ -9,14 +9,14 @@ TimeAgr <- "30"
 Pack <- "basic"
 
 #List of DP numbers by eddy4R DP names
-listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001", "TempTop" = "DP1.00003.001")
+listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001", "TBOT" = "DP1.00003.001")
 
 #names for individual variables of interest
-varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
+varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
 
-subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inLWMean", "Rg" = "inSWMean", "Pa_MDS" = "staPresMean")
+subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inLWMean", "Rg" = "inSWMean", "Pa_MDS" = "staPresMean", "TBOT" = "tempTripleMean")
 
-subVarQf <- c("PRECTmms_MDS" = "secPrecipFinalQF", "rH" = "RHFinalQF", "FLDS_MDS" = "inLWFinalQF", "Rg" = "inSWFinalQF", "Pa_MDS" = "staPresFinalQF")
+subVarQf <- c("PRECTmms_MDS" = "secPrecipFinalQF", "rH" = "RHFinalQF", "FLDS_MDS" = "inLWFinalQF", "Rg" = "inSWFinalQF", "Pa_MDS" = "staPresFinalQF", "TBOT" = "finalQF")
 
 #test <- Noble::gap.vis(site = "NIWO",bgn.month = "2018-01", end.month = "2020-01", dpID = "DP1.00003.001", save.dir = "~/eddy/plot/NCAR-NEON")
 
@@ -120,7 +120,7 @@ qfqmDfMetLong <- gather(qfqmDfMet, "variable", "qfFinal", -time)
 dataDfMet <- as.data.frame(dataDfMet)
 
 #Create long dataframe
-dataDfMetLong <- gather(dataDfMet, "variable", "value", PRECTmms_MDS, rH, FLDS_MDS, Rg, Pa_MDS, radNet)
+dataDfMetLong <- gather(dataDfMet, "variable", "value", -time)
 
 dataDfLong <- dplyr::left_join(dataDfMetLong, qfqmDfMetLong, by = c("time" = "time", "variable"="variable"))
 
@@ -137,8 +137,11 @@ ggplot2::ggplot(dataDfLong, aes(x = time, y = value, colour = qfFinal == 1)) + g
 #########################################################################################
 #Summary statistics
 #########################################################################################
+#Data summary stats
 dataSummary <- dataDfLong %>% select(-time, -qfFinal) %>% group_by(variable) %>% summarise_all(list(mean = mean, median = median, max = max, min = min, sd = sd), na.rm = TRUE)
 
+#qfFinal summary
 qfqmSummary <-  dataDfLong %>% select(-time, -value) %>% group_by(variable) %>% summarise_all(list(sumQfFinal = sum, percentQfFinal = mean))
 
+#Join summary tables
 summary <- dplyr::left_join(dataSummary, qfqmSummary, by = "variable")
