@@ -1,7 +1,11 @@
+install.packages("naniar")
+
+library(naniar)
 library(dplyr)
 library(tidyr)
+library(ggplot2)
 
-Site <- "NIWO"
+Site <- "SRER"
 
 dateBgn <- "2018-01-01"
 dateEnd <- "2019-01-01"
@@ -128,9 +132,9 @@ dataDfLong <- dplyr::left_join(dataDfMetLong, qfqmDfMetLong, by = c("time" = "ti
 #Plot
 #########################################################################################
 
-ggplot2::ggplot(dataDfLong, aes(x = time, y = value, colour = qfFinal == 1)) + geom_point(shape = 1) + 
+ggplot2::ggplot(data = dataDfLong, aes(x = time, y = value, colour = qfFinal == 1)) + geom_point(shape = 1) + 
   scale_colour_manual(name = 'qfFinal = 1', values = setNames(c('red','black'), c(T, F))) +
-  facet_grid(~variable)
+  facet_grid(variable ~ ., scales = "free_y")
 
 
 
@@ -145,3 +149,25 @@ qfqmSummary <-  dataDfLong %>% select(-time, -value) %>% group_by(variable) %>% 
 
 #Join summary tables
 summary <- dplyr::left_join(dataSummary, qfqmSummary, by = "variable")
+
+
+##########################################################################################
+#Plot gaps using naniar package
+##########################################################################################
+#Flare graph of missing data
+vis_miss(dataDfMet)
+
+#Number of variables with missing data
+varMiss <- n_var_miss(dataDfMet)
+
+#Upset interactions plot of missing data
+gg_miss_upset(dataDfMet, nsets = varMiss)
+
+#Plot of the amount of missing data per variable (as %)
+gg_miss_var(dataDfMet, show_pct = TRUE)
+
+#Add a Month column
+dataDfMet$month <- strftime(dataDfMet$time, format = "%Y%m")
+
+#Heat map of missing data
+gg_miss_fct(dataDfMet, fct = month)
