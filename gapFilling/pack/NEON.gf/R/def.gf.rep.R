@@ -27,7 +27,7 @@
 #' @param RsqMin Numeric value. The minimum coefficient of determination (r-squared) required for a regression to be 
 #' considered for use to gap-fill missing target values. If NULL, this condition is not applied. Defaults to NULL.
 #' @param LvlPred Numeric value between 0 and 1 (non-inclusive). Tolerance/confidence level of the prediction (from which the prediction 
-#' interval is calculated). Defaults to .95.
+#' uncertainty interval is calculated). Defaults to .95.
 #' 
 #' @references None
 
@@ -35,10 +35,12 @@
 #' \code{pred} The gap-filled dataset
 #' \code{lwr} The lower prediction interval for each gap-filled value. NA for non-filled values
 #' \code{upr} The upper prediction interval for each gap-filled value, NA for non-filled values
-#' \code{seMean} The standard error of the predicted mean, NA for non-filled values
-#' \code{se} The standard error of the predicted value, NA for non-filled values
+#' \code{sdMean} The standard deviation of the predicted mean y at x, NA for non-filled values
+#' \code{sdObs} The standard deviation of the y residuals from the regression line, NA for non-filled values
+#' \code{sd} The standard deviation of a single (predicted) y observation at x, NA for non-filled values. Scale this with the t-distribution to achieve the upper and lower prediction interval
 #' \code{df} The degrees of freedom of the regression used to fill each gap (n-2), NA for non-filled values
 #' \code{rsqAdj} The adjusted coefficient of determination (r-squared) of the regression used to fill each gap, NA for non-filled values
+#' \code{varFill} The replicate sensor regression used to fill each gap. NA for non-filled values.
 
 #' @keywords Currently None.
 
@@ -53,6 +55,9 @@
 #     Added options for robust regression and constraining the regression data to a range
 #        around the replicate value at each gap
 #     Added skipping of the for-loop when both Wndw and Rng are NULL
+#   Cove Sturtevant (2020-12-22)
+#     Adjusted uncertainty outputs to be able to recreate the confidence interval around predicted y values 
+#     Output the variable of the chosen replicate regression for each filled value
 ##############################################################################################
 def.gf.rep <- function(dataGf,
                        meas = !base::is.na(dataGf[[NameVarGf]]),
@@ -88,13 +93,14 @@ def.gf.rep <- function(dataGf,
 
   # Initialize the output
   dmmy <- base::rep(NA,times=numData)
-  rpt <- base::data.frame(pred=varGf,lwr=dmmy,upr=dmmy,seMean=dmmy,se=dmmy,df=dmmy,rsqAdj=dmmy)
+  rpt <- base::data.frame(pred=varGf,lwr=dmmy,upr=dmmy,sdMean=dmmy,sdObs=dmmy,sd=dmmy,df=dmmy,rsqAdj=dmmy,varFill=dmmy)
+  nameColRpt <- names(rpt)
   
   # Window the data around each value to gap-fill (no point in evaluating the points which have no replicate sensor values)
   setGf <- base::which(base::is.na(varGf) & base::apply(X=!base::is.na(base::as.matrix(dataGf[,NameVarRep])),MARGIN=1,FUN=base::sum)>0)
   for(idxGf in setGf){
     
-    # If both Wndw and Rng are NULL, we are using all the data for every regression, so let's do gaps at once
+    # If both Wndw and Rng are NULL, we are using all the data for every regression, so let's do all gaps at once
     if(base::is.null(Wndw) && base::is.null(Rng)){
       idxGf <- setGf
     }
@@ -154,14 +160,12 @@ def.gf.rep <- function(dataGf,
         lm$pred <- base::as.data.frame(predLm$fit) # prediction + desired prediction interval
         
       
-        # Add the standard error of the predicted mean and value, and the degrees of freedom
-        # Moore, McCabe, Craig - Introduction to the practice of statistics, 6th Ed., pg. 586-589 - don't need!
-        lm$pred$seMean <- predLm$se.fit # Standard error of the predicted mean
-        meanIdep <- base::mean(dataRep$idep)
-        numSamp <- base::length(lm$residuals) # Sample size used for regression
-        # sd <- base::sqrt(base::sum(lm$residuals^2)/(numSamp-2)) # Same as residual.scale
-        sd <- predLm$residual.scale # residual standard deviations
-        lm$pred$se <- sd*base::sqrt(1+1/numSamp+(idepGf-meanIdep)^2/base::sum((dataRep$idep-meanIdep)^2)) # Standard error of the prediction
+        # Add the standard error (deviation) of the predicted mean and value, and the degrees of freedom
+        # Moore, McCabe, Craig - Introduction to the practice of statistics, 6th Ed., pg. 586-589 - don't need! Already computed
+        #Lower and upper bounds of the confidence interval of a single predicted value is constructed by prediction +- (t critical value)*sqrt(predLm$se.fit^2+predLm$residual.scale^2) - Devore & Peck pg. 587
+        lm$pred$sdMean <- predLm$se.fit # Standard deviation of the predicted mean y value at x (which is what the gap is filled with)
+        lm$pred$sdObs <- predLm$residual.scale # Standard deviation of the y residuals from the regression line
+        lm$pred$sd <- sqrt(predLm$se.fit^2+predLm$residual.scale^2) # Standard deviation of a single y observation made at the x value 
         lm$pred$df <- lm$df.residual # Degrees of freedom
         
         # # Add in R2 of the regression
@@ -181,6 +185,7 @@ def.gf.rep <- function(dataGf,
         rngIdep <- maxIdep-minIdep
         if(!base::is.null(RtioRngRepMax)) {
           setRmv <- (idepGf < (minIdep-rngIdep*RtioRngRepMax)) | (idepGf > (maxIdep+rngIdep*RtioRngRepMax))
+          setRmv[is.na(setRmv)] <- TRUE
           lm$pred[setRmv,] <- NA
           
           if(base::sum(setRmv) == base::length(idxGf)){
@@ -198,13 +203,17 @@ def.gf.rep <- function(dataGf,
     # Make sure we have at least one valid linear model
     if(base::sum(!base::unlist(base::lapply(lm,base::is.null))) == 0){next}
     
-    # Choose whichever (median) standard error of the prediction is smallest
-    ucrtPred <- base::unlist(base::lapply(lm,FUN=function(lmRep){stats::median(lmRep$pred$se,na.rm=TRUE)}))
-    nameRepUse <- base::names(base::which.min(ucrtPred))
-    
-    # Fill the gap (if we made it this far that's what we want to do)
-    rpt[idxGf,] <- lm[[nameRepUse]]$pred
-    
+    # Choose whichever confidence interval for the prediction is smallest for each gap, and fill it
+    ucrtPred <- base::do.call(base::cbind,base::lapply(lm,FUN=function(lmRep){lmRep$pred$upr-lmRep$pred$lwr}))
+    idxColMinUcrt <- Rfast::rowMins(ucrtPred,value=FALSE)
+    for(idxLm in base::unique(idxColMinUcrt)){
+      idxRow <- idxColMinUcrt==idxLm
+      # Fill the gap 
+      rpt[idxGf[idxRow],setdiff(nameColRpt,'varFill')] <- lm[[idxLm]]$pred[idxRow,]
+      rpt[idxGf[idxRow],'varFill'] <- NameVarRep[idxLm]
+      
+    }
+
     # If we filled all data at once, quit the loop
     if(base::is.null(Wndw) && base::is.null(Rng)){
       break
