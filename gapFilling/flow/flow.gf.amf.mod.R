@@ -33,31 +33,31 @@ library(plotly)
 
 DirData <- 'N:/Science/FIUDATA/IPT_data/dynamic/GF_AMF/collaborationTestData'
 Plot <- TRUE # plot the output?
-PlotSave <- TRUE # Save the plots?
-DirPlot <- base::paste0(DirData,'/plots/US-SER_TA_',Sys.Date())
-RptSave <- TRUE # Save output stats and options?
+PlotSave <- FALSE # Save the plots?
+DirPlot <- base::paste0(DirData,'/plots/US-xBR_TA_',Sys.Date())
+RptSave <- FALSE # Save output stats and options?
 DirRpt <- base::paste0(DirData,'/rpt')
 
 # Specify variable & gap-filling framework details
 Opt <- base::list(
-  NameFileData = "US-SER_HH_201512311900_201805311900.csv",
+  NameFileData = "US-xBR_HH_201611301900_202005311900.csv",
   tz = 'EST',
-  NameSite = 'US-SER', # Site
+  NameSite = 'US-xBR', # Site
   NameVarGfBase = "TA", # Base-name of gap-filled variable
-  NameVarGf = "TA_1_1_1", # variable to gap-fill
+  NameVarGf = "TA_1_5_1", # variable to gap-fill
   UnitVarGf = 'deg C', # Units of gap-filled variable
-  TimeBgn = as.POSIXct('2017-05-01',tz='EST'), # Start date of data to use
-  TimeEnd = as.POSIXct('2018-03-01',tz='EST'), # End date of data to use
+  TimeBgn = as.POSIXct('2015-01-01',tz='EST'), # Start date of data to use
+  TimeEnd = as.POSIXct('2021-01-01',tz='EST'), # End date of data to use
   # No specify gap-filling framework(s) - enter multiple frameworks to test in additional named lists (make sure list names 
   # are unique). Non-null entries are assumed to indicate performing that step
   Fmwk=base::list(
     repMdsDflt = base::list(
       NameFmwk = 'Replicate Sensor + MDS Default',
-      NameVarRep = c("TA_1_1_2"), # replicates for the gap-filled variable. Enter NULL for none.
+      NameVarRep = c("T_CANOPY_1_1_1","T_CANOPY_1_2_1","T_CANOPY_1_3_1"), # replicates for the gap-filled variable. Enter NULL for none.
       NameVarSiml = NULL, # Theoretically similar measurements at same location (like PAR similar to incoming shortwave). Just one variable for now. Enter NULL for none.
       NameVarSpac = NULL, # same variable as gap-filled, but confounded by spatial variation (horizontal or vertical). Enter NULL for none.
       NameVarMds = c("SW_IN_1_1_1","VPD","TA_1_1_1"), # Input vars to MDS, e.g. SW_IN, VPD, TA. Enter NULL for none.
-      TolVarMds = c(50,5,2.5) # Tolerance interval for MDS variables specified above, in same units as variable
+      TolVarMds = c(50,5,3) # Tolerance interval for MDS variables specified above, in same units as variable
     )#,
     # mdsDflt=base::list(
     #   NameFmwk = 'MDS default',
@@ -98,7 +98,7 @@ rownames(data) <- c()
 # Restrict data to desired time range
 data <- data[data$TIMESTAMP_START >= Opt$TimeBgn & data$TIMESTAMP_END < Opt$TimeEnd,]
 
-# Work on this module if/when there is a dynamic selection of variables that are replicates, spatial variates, etc.
+# Work on this module if/when there is a DYNAMIC selection (rather than specified above) of variables that are replicates, spatial variates, etc.
 # For now it is not used
 if(FALSE) {
   # Find matches to the gap-filling variable (matching base name, with optional location indices)
@@ -149,7 +149,7 @@ names(numGfMeth) <- names(Opt$Fmwk) # name the frameworks
 stat = data.frame(numGf=dmmyNa,rsq=dmmyNa,rmseAbs=dmmyNa,rmseRltv=dmmyNa,mae=dmmyNa,bias=dmmyNa,sd=dmmyNa) # overall gap-filling performance statistics
 stat <- lapply(1:length(Opt$Fmwk),FUN=function(idx){stat}) # Replicate the statistics df, one for each gap-filling framwork we will test
 names(stat) <- names(Opt$Fmwk) # name the frameworks
-statMeth = list(numGf=dmmyMeth,rsq=dmmyMeth,rmseAbs=dmmyMeth,rmseRltv=dmmyMeth,mae=dmmyMeth,bias=dmmyMeth,sd=dmmyMeth) # performance statistics for each method (regardless of whether values were gap-filled with the method)
+statMeth = list(numGf=dmmyMeth,rsq=dmmyMeth,rmseAbs=dmmyMeth,rmseRltv=dmmyMeth,mae=dmmyMeth,bias=dmmyMeth,sd=dmmyMeth,ucrtInPerc=dmmyMeth) # performance statistics for each method (regardless of whether values were gap-filled with the method)
 statMeth <- lapply(1:length(Opt$Fmwk),FUN=function(idx){statMeth}) # Replicate the statistics, one for each gap-filling framework we will test
 names(statMeth) <- names(Opt$Fmwk) # name the frameworks
 
@@ -352,7 +352,7 @@ for(idxFmwk in names(Opt$Fmwk)) {
         NameVarRep <- Opt$Fmwk[[idxFmwk]]$NameVarRep
         
         # General regression - no time or range windowing
-        dataRepRegAll <- eddy4R.gf::def.gf.rep(dataGf=dataGf[,c(NameVarGf,NameVarRep)],meas=meas,NameVarGf=NameVarGf,NameVarRep=NameVarRep,
+        dataRepRegAll <- def.gf.rep(dataGf=dataGf[,c(NameVarGf,NameVarRep)],meas=meas,NameVarGf=NameVarGf,NameVarRep=NameVarRep,
                                             Rbst=TRUE,Wndw=NULL,Rng=NULL,NumSampMin=5,RtioRngRepMax=0.1,RsqMin=NULL,LvlPred=0.95)
         
         # If the regression is poor using all the data
@@ -376,7 +376,7 @@ for(idxFmwk in names(Opt$Fmwk)) {
         dataRepReg <- dataRepRegAll
         
         # Accounting
-        setGfRep <- setGf[which(!is.na(dataRepReg$pred[setGf]))] # artificial gap-indices filled with replicate sensor regression
+        setGfRep <- setGf[which(!is.na(dataRepReg$pred[setGf]+data[setGf,Opt$NameVarGf]))] # artificial gap-indices filled with replicate sensor regression
         setGapRep <- setGap[which(!is.na(dataRepReg$pred[setGap]))] # original gap-indices filled with replicate sensor regression
         print(paste0(length(setGfRep),' artificial gaps able to be filled with replicate sensor regression (these may overlap with original gaps)'))
         print(paste0(length(setGapRep),' original gaps able to be filled with replicate sensor regression (these may overlap with artifical gaps)'))
@@ -385,9 +385,9 @@ for(idxFmwk in names(Opt$Fmwk)) {
         idxMeth <- 'rep'
         varGfMeth <- varGf # Intialize
         varGfMeth[setGfRep] <- dataRepReg$pred[setGfRep] # Fill all possible artificial gaps
-        dataStat <- data.frame(varGfMeas=data[setGf,Opt$NameVarGf],varGfPred=varGfMeth[setGf])
-        dataStat <- dataStat[!is.na(dataStat$varGfPred) & !is.na(dataStat$varGfMeas),] # Keep only pairwise complete observations
+        dataStat <- data.frame(varGfMeas=data[setGfRep,Opt$NameVarGf],varGfPred=varGfMeth[setGfRep])
         dataStat$err <- dataStat$varGfPred-dataStat$varGfMeas # Error
+        dataStat$ucrtIn <- dataStat$varGfMeas >= dataRepReg$lwr[setGfRep] & dataStat$varGfMeas <= dataRepReg$upr[setGfRep] # Boolean - did the actual observation lie within the prediction interval?
         rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$numGf[[idxMeth]][idxPerm] <- length(setGfRep)
         rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$rsq[[idxMeth]][idxPerm] <- stats::cor(dataStat$varGfPred,dataStat$varGfMeas)^2
         rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$rmseAbs[[idxMeth]][idxPerm] <- sqrt((1/rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$numGf[[idxMeth]][idxPerm])*sum((dataStat$varGfPred-dataStat$varGfMeas)^2))
@@ -395,6 +395,7 @@ for(idxFmwk in names(Opt$Fmwk)) {
         rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$mae[[idxMeth]][idxPerm] <- (1/rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$numGf[[idxMeth]][idxPerm])*sum(abs(dataStat$err))
         rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$bias[[idxMeth]][idxPerm] <- (1/rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$numGf[[idxMeth]][idxPerm])*sum(dataStat$err) # Mean error
         rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$sd[[idxMeth]][idxPerm] <- stats::sd(dataStat$err) # standard deviation of the error
+        rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$ucrtInPerc[[idxMeth]][idxPerm] <- sum(dataStat$ucrtIn)/nrow(dataStat)*100 # % of the measured obs that fell within the prediction interval (effectiveness of the uncertainty estimate)
         
         # Develop a linear regression between the all replicate sensor and the target sensor data
         # Note - this is not used to fill gaps, only for plotting
@@ -496,6 +497,13 @@ for(idxFmwk in names(Opt$Fmwk)) {
         
         names(dataMdsOut)[1] <- 'DateTime' # Add timestamp
         
+        # Compute the 95% confidence interval of the predictions from the MDS method
+        tcrit <- stats::qt(p=.05/2, df=dataMdsOut[,grepl(pattern='_fnum',x=names(dataMdsOut))]-1, lower.tail=FALSE) # T distribution critical value
+        diffPredMds <- tcrit*(dataMdsOut[,grepl(pattern='_fsd',x=names(dataMdsOut))]*sqrt(1+1/dataMdsOut[,grepl(pattern='_fnum',x=names(dataMdsOut))])) # half-width of the prediction interval
+        dataMdsOut[[paste0(Opt$NameVarGf,'_lwr')]] <- dataMdsOut[[paste0(Opt$NameVarGf,'_f')]]-diffPredMds
+        dataMdsOut[[paste0(Opt$NameVarGf,'_upr')]] <- dataMdsOut[[paste0(Opt$NameVarGf,'_f')]]+diffPredMds
+        
+        
         # Change any Rg variables back to SW_IN
         names(dataMdsOut) <- gsub(pattern='SW_IN',replacement='Rg',x=names(dataMdsOut))
         
@@ -509,10 +517,11 @@ for(idxFmwk in names(Opt$Fmwk)) {
         idxMeth <- 'mds'  # ADJUST ME FOR METHOD ('rep','siml','spac','mds')
         varGfMeth <- varGf # Intialize
         varGfMeth[setGfMds] <- dataMdsOut[setGfMds,base::paste0(Opt$NameVarGf,'_f')] # Fill all possible artificial gaps - ADJUST ME FOR METHOD
-        dataStat <- data.frame(varGfMeas=data[setGf,Opt$NameVarGf],varGfPred=varGfMeth[setGf])
+        dataStat <- data.frame(varGfMeas=data[setGfMds,Opt$NameVarGf],varGfPred=varGfMeth[setGfMds])
         dataStat$err <- dataStat$varGfPred-dataStat$varGfMeas # Error
-        dataStat$meth <- dataMdsOut[setGf,base::paste0(Opt$NameVarGf,'_fmeth')]
-        dataStat$wndw <- dataMdsOut[setGf,base::paste0(Opt$NameVarGf,'_fwin')]
+        dataStat$meth <- dataMdsOut[setGfMds,base::paste0(Opt$NameVarGf,'_fmeth')]
+        dataStat$wndw <- dataMdsOut[setGfMds,base::paste0(Opt$NameVarGf,'_fwin')]
+        dataStat$ucrtIn <- dataStat$varGfMeas >= dataMdsOut[setGfMds,base::paste0(Opt$NameVarGf,'_lwr')] & dataStat$varGfMeas <= dataMdsOut[setGfMds,base::paste0(Opt$NameVarGf,'_upr')] # Boolean - did the actual observation lie within the prediction interval?
         dataStat <- dataStat[!is.na(dataStat$varGfPred) & !is.na(dataStat$varGfMeas),] # Keep only pairwise complete observations
         
         for(idxMethMds in 1:3){
@@ -525,6 +534,7 @@ for(idxFmwk in names(Opt$Fmwk)) {
           rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$mae[[idxMeth]][idxPerm] <- (1/rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$numGf[[idxMeth]][idxPerm])*sum(abs(dataStatIdx$err))
           rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$bias[[idxMeth]][idxPerm] <- (1/rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$numGf[[idxMeth]][idxPerm])*sum(dataStatIdx$err) # Mean error
           rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$sd[[idxMeth]][idxPerm] <- stats::sd(dataStatIdx$err) # standard deviation of the error
+          rpt[[idxTypeGf]]$statMeth[[idxFmwk]]$ucrtInPerc[[idxMeth]][idxPerm] <- sum(dataStatIdx$ucrtIn)/nrow(dataStatIdx)*100 # % of the measured obs that fell within the prediction interval (effectiveness of the uncertainty estimate)
         }
 
         # Re-fill the artificial gaps in dataMdsIn with the measured values
@@ -742,7 +752,7 @@ for(idxFmwk in names(Opt$Fmwk)) {
           
         } # End MDS plotting
       } # End MDS gap-filling
-      
+      next
       # From the different methods, choose the one with the best performance for each gap.
       # WOULD BE GREAT TO GENERALIZE THIS
       # Chose replicate sensor over MDS
@@ -856,7 +866,88 @@ for(idxFmwk in names(Opt$Fmwk)) {
   } # End loop around gap-filling scenarios
 } # End loop around frameworks
 
+
+
+
+
+# Plot the R-squared performance of the (repMdsDflt framework only)
+stat <- lapply(names(rpt),FUN=function(idxTypeGf){rpt[[idxTypeGf]]$statMeth$repMdsDflt$rsq})
+names(stat)<-names(rpt)
+statAll <- reshape2::melt(stat)
+statAll <- statAll[,c('variable','value','L1')]
+names(statAll) <- c('method','Rsq','typeGf')
+
+titl=base::paste0('R-squared Performance')
+
+# Number of points
+plotBoxRsq <- plotly::plot_ly(statAll,x=~typeGf,y=~Rsq,color=~method,type='box') %>%
+  plotly::layout(boxmode='group',
+                 yaxis=list(title='R-squared'),
+                 xaxis=list(title='Gap type',
+                            categoryorder='array',
+                            categoryarray=c('VS','S','M','L','VL','X')),
+                 title=titl
+  )
+if(PlotSave){
+  #plotly::export(plotBoxRsq,base::paste0(DirPlot,'/','PfmcAll_numGf_',Opt$NameSite,'_',Opt$NameVarGf,'_',Sys.Date(),'.pdf'))
+} else {
+  print(plotBoxRsq)
+}
+
+# Plot the bias performance of the (repMdsDflt framework only)
+stat <- lapply(names(rpt),FUN=function(idxTypeGf){rpt[[idxTypeGf]]$statMeth$repMdsDflt$bias})
+names(stat)<-names(rpt)
+statAll <- reshape2::melt(stat)
+statAll <- statAll[,c('variable','value','L1')]
+names(statAll) <- c('method','bias','typeGf')
+
+titl=base::paste0('Bias Performance')
+
+# Number of points
+plotBias <- plotly::plot_ly(statAll,x=~typeGf,y=~bias,color=~method,type='box') %>%
+  plotly::layout(boxmode='group',
+                 yaxis=list(title='Bias'),
+                 xaxis=list(title='Gap type',
+                            categoryorder='array',
+                            categoryarray=c('VS','S','M','L','VL','X')),
+                 title=titl
+  )
+if(PlotSave){
+  #plotly::export(plotBoxRsq,base::paste0(DirPlot,'/','PfmcAll_numGf_',Opt$NameSite,'_',Opt$NameVarGf,'_',Sys.Date(),'.pdf'))
+} else {
+  print(plotBias)
+}
+
+# Plot the ability of the uncertainty estimates to adequately reflect the uncertainty (repMdsDflt framework only)
+stat <- lapply(names(rpt),FUN=function(idxTypeGf){rpt[[idxTypeGf]]$statMeth$repMdsDflt$ucrtInPerc})
+names(stat)<-names(rpt)
+statAll <- reshape2::melt(stat)
+statAll <- statAll[,c('variable','value','L1')]
+names(statAll) <- c('method','percWithinUcrt95','typeGf')
+
+titl=base::paste0('Performance of uncertainty estimates')
+
+# Number of points
+plotBoxUcrtIn <- plotly::plot_ly(statAll,x=~typeGf,y=~percWithinUcrt95,color=~method,type='box') %>%
+  plotly::layout(boxmode='group',
+                 yaxis=list(title='% observations within 95% prediction interval'),
+                 xaxis=list(title='Gap type',
+                            categoryorder='array',
+                            categoryarray=c('VS','S','M','L','VL','X')),
+                 title=titl
+  )
+if(PlotSave){
+  #plotly::export(plotBoxRsq,base::paste0(DirPlot,'/','PfmcAll_numGf_',Opt$NameSite,'_',Opt$NameVarGf,'_',Sys.Date(),'.pdf'))
+} else {
+  print(plotBoxUcrtIn)
+}
+
+
 stop('Done')
+
+
+
+
 ####### Final Plotting #########
 # Compare the performance of the different frameworks
 if(Plot & length(opt$Fmwk) > 1){ 
