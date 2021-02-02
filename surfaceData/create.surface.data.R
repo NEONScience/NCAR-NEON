@@ -19,9 +19,17 @@ rm(list = ls())
 #Dependencies
 #############################################################
 
-# Load packages
-library(tidyverse) # joining and wrangling functions
-library(neonUtilities) # for NEON data download via the API
+#Call the R HDF5 Library
+packReq <- c('tidyverse','neonUtilities')# for tidyverse: joining and wrangling data; neonUtilities: NEON data download via the API
+
+#Install and load all required packages
+lapply(packReq, function(x) {
+  print(x)
+  if(require(x, character.only = TRUE) == FALSE) {
+    install.packages(x)
+    library(x, character.only = TRUE)
+  }})
+
 
 # # Load packages - Git 
 # library(devtools)
@@ -34,6 +42,8 @@ library(neonUtilities) # for NEON data download via the API
 #Workflow parameters and helper files
 #############################################################
 
+
+
 # Set directory - add for new users as needed
 if (file.exists('/Users/sweintraub/')) {
   inputs <- "/Users/sweintraub/Documents/GitHub/NCAR-NEON/surfaceData/"
@@ -41,14 +51,14 @@ if (file.exists('/Users/sweintraub/')) {
 }
 
 # Add info about megapit land cover (from TIS) and dominant plants in the tower (pheno)
-cover <- read.csv(paste0(inputs, "tower.site.metadata.csv"), 
-                         header = T, stringsAsFactors = F)
+cover <- read.csv("https://s3.data.neonscience.org/neon-ncar/NEON/surf_files/inpMeta/tower.site.metadata.csv", 
+                  header = T, stringsAsFactors = F)
 
 
 ##############################################################################
 #Megapit soil data download (DP1.00096.001)
 ##############################################################################
-mgp <- loadByProduct(
+mgp <- neonUtilities::loadByProduct(
   site = "all",
   dpID = "DP1.00096.001",
   package = "basic",
@@ -56,6 +66,7 @@ mgp <- loadByProduct(
   token = Sys.getenv('NEON_PAT')
 ) # can remove 'token' parameter if you don't have one
 
+#Bring list components into global environment
 list2env(mgp,envir=.GlobalEnv)
 
 
