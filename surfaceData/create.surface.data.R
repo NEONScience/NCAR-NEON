@@ -45,15 +45,20 @@ lapply(packReq, function(x) {
 #############################################################
 
 
-
 # Set directory - add for new users as needed
-inputs <- "~/eddy/data/CLM/surf/"
-if (file.exists('/Users/sweintraub/')) {
-  inputs <- "/Users/sweintraub/Documents/GitHub/NCAR-NEON/surfaceData/"
-  outputs <- paste0(inputs, "siteFiles/")
-}
+# user-customizeable access to input and output data directories
+DirUsr <- c(
+  dd = "~/eddy/data/CLM/surf",
+  sw = "/Users/sweintraub/Documents/GitHub/NCAR-NEON/surfaceData",
+  dock = tempdir()
+)["dd"]
+
+#Create input output directories
+  inputs <- DirUsr
+  outputs <- paste0(inputs, "/siteFiles/")
+  
 #if folder doesn't exist create it
-if(!dir.exists(inputs)) dir.create(inputs, recursive = TRUE)
+if(!dir.exists(outputs)) dir.create(outputs, recursive = TRUE)
 
 
 # Add info about megapit land cover (from TIS) and dominant plants in the tower (pheno)
@@ -184,6 +189,22 @@ varMetaSurf <- varMetaSurf[order(varMetaSurf$fieldName),]
 # Also write the 'variables' file, for units
 write.csv(varMetaSurf, file = paste0(inputs, "varMetaSurf.csv"), row.names = FALSE)
 
+###############################################################################
+#Output to S3
+###############################################################################
+
+source <- paste(localPath, filename, sep="/")
+target <- paste(s3Path, s3filename, sep="/")
+if (!file.exists(source)) {
+  stop(paste0("source file does not exist. Check file path: ", source))
+}
+rlog$debug(paste0("from: ", source))
+rlog$debug(paste0("to: ", target))
+
+tryCatch({aws.s3::put_object(file=source, object=target, bucket=AWS_S3_BUCKET, region=region)},
+         error=function(cond) {
+           stop(paste0("Failed to upload file ", filename, "! Please check settings with ECS."))
+         })
 
 
 
