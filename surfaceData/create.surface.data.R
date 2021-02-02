@@ -10,6 +10,8 @@
 # changelog and author contributions / copyrights
 # Samantha Weintraub (2021-02-01)
 #   original creation
+# David Durden (2021-02-02)
+#   Adding variable description, uploading output to S3 option
 ##############################################################################################
 
 # Reset workspace
@@ -171,7 +173,7 @@ varSub <- variables_00096[!duplicated(variables_00096$fieldName),]
 
 #Filter and subset variable description metadata
 varMeta <- varSub %>% filter(fieldName %in% varList) %>% select(fieldName, description, dataType, units)
-#Metadata for additional data streams
+#Metadata for additional data streams ##TODO:: move to internal data later
 varMetaAdd <- data.frame(fieldName = c("ecosystemType_Megapit","ecoregionWWF_Megapit","landCover_Megapit", "dominantPlants_Tower", "coarseFrac2to20"), description = c("The predominant ecosystem type found at the site","The ecoregion at the site","The landcover type found at the site","The most dominant plant species found at the site", "Coarse fragment (2-20 mm) content of the <20 mm size fraction of the biogeochemistry soil sample"), dataType = c("string","string","string","string","real"), units = c(NA,NA,NA,NA,"	gramsPerKilogram"))
 #Combine metadata to final dataframe
 varMetaSurf <- rbind(varMeta,varMetaAdd)
