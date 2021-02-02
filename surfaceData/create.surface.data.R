@@ -42,6 +42,9 @@ lapply(packReq, function(x) {
 ###############################################################################
 #Output to S3 ENV variable definitions
 ###############################################################################
+MethOut <- c("local", "s3")[2]
+
+if(MethOut == "s3"){
 #Set ENV variables
 base::Sys.setenv("S3PATHUPLD" = "NEON/surf_files")
 base::Sys.setenv("NEON_S3_ACCESS_KEY_ID" = "neon-ncar-writer")
@@ -51,7 +54,7 @@ base::Sys.setenv("NEON_S3_OUTPUT_BUCKET" = "neon-ncar")
 
 #Grab needed ENV variable
 S3PathUpld <- base::Sys.getenv("S3PATHUPLD")
-
+}
 
 
 #############################################################
@@ -209,10 +212,11 @@ write.csv(varMetaSurf, file = paste0(inputs, fileOutMeta), row.names = FALSE)
 #Output to S3
 ###############################################################################
 
+if(MethOut == "s3"){
 
 #Upload PDF to ECS
 accs::upload.to.ecs(s3Path = S3PathUpld, localPath = inputs, s3filename = fileOutMeta, filename = fileOutMeta)
 
 
 
-
+}
