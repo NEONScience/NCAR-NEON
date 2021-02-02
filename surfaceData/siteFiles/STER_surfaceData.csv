@@ -1,7 +1,0 @@
-"domainID","siteID","decimalLatitude","decimalLongitude","elevation","ecosystemType_Megapit","ecoregionWWF_Megapit","landCover_Megapit","dominantPlants_Tower","horizonName","biogeoTopDepth","biogeoBottomDepth","carbonTot","nitrogenTot","phH2o","coarseFrag2To5","coarseFrag5To20","coarseFrac2to20","sandTotal","siltTotal","clayTotal","bulkDensTopDepth","bulkDensBottomDepth","bulkDensExclCoarseFrag"
-"D10","STER",40.45984,-103.03008,1369,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","Ap1",0,11,13.3,0.8,7.4,0,0,0,46.7,34.3,19,0,10,1.0581
-"D10","STER",40.45984,-103.03008,1369,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","Ap2",11,28,8.9,0.8,6.9,0,0,0,43.1,36.7,20.2,12,22,1.2906
-"D10","STER",40.45984,-103.03008,1369,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","Bt",28,70,6.8,0.9,7.9,0,0,0,35.7,40.5,23.8,56,66,0.9677
-"D10","STER",40.45984,-103.03008,1369,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","Btk",70,121,19.8,0.3,8.6,35,15,5,43.9,36.3,19.8,105,115,1.0885
-"D10","STER",40.45984,-103.03008,1369,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","C1",121,159,18.5,0.1,8.8,0,0,0,77.8,17.2,5,121,131,1.335
-"D10","STER",40.45984,-103.03008,1369,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","C2",159,200,19.1,0,8.8,0,0,0,83.7,14.1,2.2,185,191,1.1788

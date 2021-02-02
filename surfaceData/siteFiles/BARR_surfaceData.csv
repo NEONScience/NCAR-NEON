@@ -1,6 +1,0 @@
-"domainID","siteID","decimalLatitude","decimalLongitude","elevation","ecosystemType_Megapit","ecoregionWWF_Megapit","landCover_Megapit","dominantPlants_Tower","horizonName","biogeoTopDepth","biogeoBottomDepth","carbonTot","nitrogenTot","phH2o","coarseFrag2To5","coarseFrag5To20","coarseFrac2to20","sandTotal","siltTotal","clayTotal","bulkDensTopDepth","bulkDensBottomDepth","bulkDensExclCoarseFrag"
-"D18","BARR",71.281711,-156.650219,7,"Tundra","tundra","rangeland/grassland","Carex aquatilis, Dupontia fisheri, Petasites frigidus","Oe",0,7,396.3,13.8,5.5,0,0,0,NA,NA,NA,NA,NA,NA
-"D18","BARR",71.281711,-156.650219,7,"Tundra","tundra","rangeland/grassland","Carex aquatilis, Dupontia fisheri, Petasites frigidus","Oa",7,32,245.9,13.7,5.3,0,0,0,NA,NA,NA,7,32,0.305
-"D18","BARR",71.281711,-156.650219,7,"Tundra","tundra","rangeland/grassland","Carex aquatilis, Dupontia fisheri, Petasites frigidus","Cgjj/Oajj",32,45,109.3,5.9,5.8,0,0,0,38.3,30.4,31.3,32,45,0.1523
-"D18","BARR",71.281711,-156.650219,7,"Tundra","tundra","rangeland/grassland","Carex aquatilis, Dupontia fisheri, Petasites frigidus","Oaf/Cgjjf",58,110,88.1,4.6,6.3,6,3,0.9,53.4,27.1,19.5,58,110,0.3525
-"D18","BARR",71.281711,-156.650219,7,"Tundra","tundra","rangeland/grassland","Carex aquatilis, Dupontia fisheri, Petasites frigidus","Cgjff/Oajjf",110,180,37.6,2.1,7.5,16,8,2.4,61.2,21.1,17.7,110,180,1.0714

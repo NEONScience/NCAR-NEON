@@ -1,6 +1,0 @@
-"domainID","siteID","decimalLatitude","decimalLongitude","elevation","ecosystemType_Megapit","ecoregionWWF_Megapit","landCover_Megapit","dominantPlants_Tower","horizonName","biogeoTopDepth","biogeoBottomDepth","carbonTot","nitrogenTot","phH2o","coarseFrag2To5","coarseFrag5To20","coarseFrac2to20","sandTotal","siltTotal","clayTotal","bulkDensTopDepth","bulkDensBottomDepth","bulkDensExclCoarseFrag"
-"D19","HEAL",63.8798,-149.21539,670,"Tundra","tundra","rangeland/grassland","Bouteloua gracilis, Aristida purpurea, Calylophus hartwegii","Oi",0,9,464.9,14.9,4.8,0,0,0,NA,NA,NA,0,9,0.0226
-"D19","HEAL",63.8798,-149.21539,670,"Tundra","tundra","rangeland/grassland","Bouteloua gracilis, Aristida purpurea, Calylophus hartwegii","Oe",9,22,453.5,12,4.3,0,0,0,NA,NA,NA,9,22,0.0317
-"D19","HEAL",63.8798,-149.21539,670,"Tundra","tundra","rangeland/grassland","Bouteloua gracilis, Aristida purpurea, Calylophus hartwegii","Oa",22,31,271.2,11,4.5,14,18,3.2,NA,NA,NA,22,31,0.3531
-"D19","HEAL",63.8798,-149.21539,670,"Tundra","tundra","rangeland/grassland","Bouteloua gracilis, Aristida purpurea, Calylophus hartwegii","A/Cjj",31,50,95.6,3.7,5,22,33,5.5,35.1,51.5,13.4,31,50,1.4034
-"D19","HEAL",63.8798,-149.21539,670,"Tundra","tundra","rangeland/grassland","Bouteloua gracilis, Aristida purpurea, Calylophus hartwegii","Cjjf",50,84,52.9,2,5.2,24,58,8.2,38.6,46.7,14.7,50,84,0.4663
