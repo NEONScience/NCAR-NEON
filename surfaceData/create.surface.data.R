@@ -72,7 +72,7 @@ DirUsr <- c(
 
 #Create input output directories
   inputs <- DirUsr
-  outputs <- paste0(inputs, "/siteFiles/")
+  outputs <- paste0(inputs, "/siteFiles")
   
 #if folder doesn't exist create it
 if(!dir.exists(outputs)) dir.create(outputs, recursive = TRUE)
@@ -184,8 +184,14 @@ mgp_all.list <- split(mgp_all.2, mgp_all.2$siteID)
 
 # Write them to the GitHub folder
 for (i in 1:length(mgp_all.list)) {
-  write.csv(mgp_all.list[[i]], file = paste0(outputs, names(mgp_all.list[i]), "_surfaceData.csv"), row.names = FALSE)
+  write.csv(mgp_all.list[[i]], file = paste0(outputs,"/", names(mgp_all.list[i]), "_surfaceData.csv"), row.names = FALSE)
 }
+
+
+##############################################################################
+#Prepare and write variable description metadata
+##############################################################################
+
 
 #List of variables output
 varList <- c("domainID", "siteID", "decimalLatitude","decimalLongitude","elevation","ecosystemType_Megapit","ecoregionWWF_Megapit","landCover_Megapit", "dominantPlants_Tower","horizonName", "biogeoTopDepth","biogeoBottomDepth", "carbonTot","nitrogenTot","phH2o", "coarseFrag2To5","coarseFrag5To20","coarseFrac2to20", "sandTotal", "siltTotal", "clayTotal", "bulkDensTopDepth", "bulkDensBottomDepth", "bulkDensExclCoarseFrag")
@@ -203,7 +209,7 @@ varMetaSurf <- rbind(varMeta,varMetaAdd)
 #Sort dataframe alphabetically
 varMetaSurf <- varMetaSurf[order(varMetaSurf$fieldName),]
 
-
+#Output filename for variable metadata
 fileOutMeta <- "varMetaSurf.csv"
 # Also write the 'variables' file, for units
 write.csv(varMetaSurf, file = paste0(inputs, fileOutMeta), row.names = FALSE)
@@ -211,12 +217,20 @@ write.csv(varMetaSurf, file = paste0(inputs, fileOutMeta), row.names = FALSE)
 ###############################################################################
 #Output to S3
 ###############################################################################
-
+#Should data be written out to S3
 if(MethOut == "s3"){
 
 #Upload PDF to ECS
 accs::upload.to.ecs(s3Path = S3PathUpld, localPath = inputs, s3filename = fileOutMeta, filename = fileOutMeta)
 
+#Grab all output files names
+fileOut <- base::list.files(outputs)  
+ 
+#Upload to S3
+lapply(fileOut, function(x){
+  print(x)
+  #Function to upload to ECS
+  accs::upload.to.ecs(s3Path = S3PathUpld, localPath = outputs, s3filename = x, filename = x) 
+})#End lapply for writing data out to S3
 
-
-}
+} #End if statement to write to S3
