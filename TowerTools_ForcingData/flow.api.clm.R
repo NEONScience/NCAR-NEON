@@ -21,7 +21,7 @@
 
 #Call the R HDF5 Library
 packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools",'reshape2',
-             'ggplot2','tidyverse','gridExtra','knitr')
+             'ggplot2','tidyverse','gridExtra','knitr','naniar', "Rfast")
 
 #Install and load all required packages
 lapply(packReq, function(x) {
@@ -43,7 +43,7 @@ options(stringsAsFactors=F)
 #Workflow parameters
 #############################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "SCBI"
+Site <- "SRER"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -52,18 +52,18 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2020-01-31"
+dateEnd <- "2019-01-31"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
-lowmem <- TRUE 
+lowmem <- FALSE
 maxmonths <- 3 
-user <- 'Will Wieder'
+user <- 'David Durden'
 
 #The version data for the FP standard conversion processing
 ver <- paste0("v",format(Sys.time(), "%Y%m%d"))
 #Base directory for output
-DirOutBase <-paste0("~/Desktop/Working_files/NEON/NCAR_NEON/NEONforcing/",ver)
+DirOutBase <-paste0("~/eddy/data/CLM",ver)
 #Download directory for HDF5 files from the API
 DirDnld=tempdir()
 
@@ -83,6 +83,8 @@ if("METHPARAFLOW" %in% base::names(base::Sys.getenv())) {
 
 #H5 extraction directory
 DirExtr <- paste0(DirDnld,"/extr")
+#Create input directory for double zip files
+DirInp <- paste0(DirExtr,"/inp")
 #Append the site to the base output directory
 DirOut <- paste0(DirOutBase, "/", Site)
 
@@ -112,6 +114,11 @@ neonUtilities::zipsByProduct(dpID=idDpFlux, package=Pack,
 zipFile <- base::list.files(paste0(DirDnld,"/filesToStack00200"), pattern = ".zip", 
                             full.names = TRUE)[1]
 utils::unzip(zipFile, exdir = DirExtr)
+
+
+#ungzip file
+gzFile <- list.files(DirExtr, pattern = ".gz", full.names = TRUE)
+lapply(gzFile, R.utils::gunzip)
 
 #Get HDF5 filename
 fileNameHdf5 <- base::list.files(path = DirExtr, pattern = "*.h5", full.names = TRUE)
@@ -186,11 +193,22 @@ dataList <- list()
       "qfTurbH2oFinl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
       "qfTurbCo2Finl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
       "WS_MDS" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
-      #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
-      "Tair" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
+      "qfWS_MDS" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.soni.veloXaxsYaxsErth.qfFinl"],
+      "presAtmTurb" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.co2Turb.presAtm.mean"],
+      "qfPresAtmTurb" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.presAtm.qfFinl"],
+      "presAtmBaro" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.presBaro.presAtm.mean"],
+      "qfPresAtmBaro" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.presBaro.presAtm.qfFinl"],
+      "tempAirSoni" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
+      , 
+      "qfTempAirSoni" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.soni.tempAir.qfFinl"],
+      "tempAirTop" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.tempAirTop.temp.mean"]
+      ,
+      "qfTempAirTop" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.tempAirTop.temp.qfFinl"]
+      
       , stringsAsFactors = FALSE)
     
-  } else {
+  
+    } else {
     # Lower memory option: place zips in separate folders, read in data for each subdirectory 
     # and create a dataframe for each. Then concatenate the dataframes.
     
@@ -246,7 +264,7 @@ dataList <- list()
     # combine output
     writeLines(paste0("Combining all ", i, " dataframes into one."))
     dataDfFlux <- do.call(rbind, dataDfFlux_part)
-    }
+    } #End Low memory logic
 
 
 
@@ -298,12 +316,17 @@ dataDfFlux$qfTurbFlow <- NULL
 
 
 #List of DP numbers by eddy4R DP names
-listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001")
+listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001", "TBOT" = "DP1.00003.001")
 
 #names for individual variables of interest
-varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
+varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
 
-subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inLWMean", "Rg" = "inSWMean", "Pa_MDS" = "staPresMean")
+#Sub data product variables
+subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inLWMean", "Rg" = "inSWMean", "Pa_MDS" = "staPresMean", "TBOT" = "tempTripleMean")
+
+
+#Sub data product quality flags
+subVarQf <- c("PRECTmms_MDS" = "secPrecipFinalQF", "rH" = "RHFinalQF", "FLDS_MDS" = "inLWFinalQF", "Rg" = "inSWFinalQF", "Pa_MDS" = "staPresFinalQF", "TBOT" = "finalQF")
 
 #Grab data for data products using neonUtilities
 #neonUtilities::getPackage(site_code = site, package = pack, year_month =  )
@@ -322,6 +345,7 @@ varDp["PRECTmms_MDS"] <- ifelse(test = any(grepl(pattern = varDp["PRECTmms_MDS"]
 
 #Failsafe if using primary precip
 subVar["PRECTmms_MDS"] <- ifelse(test = varDp["PRECTmms_MDS"] == "SECPRE_30min", "secPrecipBulk", "priPrecipBulk")
+subVarQf["PRECTmms_MDS"] <- ifelse(test = varDp["PRECTmms_MDS"] == "SECPRE_30min", "secPrecipFinalQF", "priPrecipFinalQF")
 
 
 
@@ -370,6 +394,39 @@ dataDfMet$PRECTmms_MDS <- dataDfMet$PRECTmms_MDS/1800 #1800 sec/0.5 hours
 #Calculate net radiation
 dataDfMet$radNet <-dataMetSubRglr$Rg[["inSWMean"]] - dataMetSubRglr$Rg[["outSWMean"]] + dataMetSubRglr$Rg[["inLWMean"]] - dataMetSubRglr$Rg[["outLWMean"]]
 
+##############################################################################
+#Combine streams for gapfilling
+##############################################################################
+
+
+#Grab temp data streams
+dataTempGf <- data.frame("tempAirSoni" = dataDfFlux$tempAirSoni, "tempAirTop" = dataDfFlux$tempAirTop, "TBOT" = dataDfMet$TBOT)
+#Grab temp qfqm streams
+qfTempGf <- data.frame(dataDfFlux$qfTempAirSoni,dataDfFlux$qfTempAirTop)
+
+#Add a Month column
+dataTempGf$mnthLab <- strftime(dataDfFlux$TIMESTAMP, format = "%Y%m")
+
+#Number of variables with missing data
+varMiss <- n_var_miss(dataTempGf)
+
+#Upset interactions plot of missing data
+gg_miss_upset(dataTempGf, nsets = varMiss)
+
+#Plot of the amount of missing data per variable (as %)
+#gg_miss_var(dataDfMet, show_pct = TRUE)
+
+#Heat map of missing data
+gg_miss_fct(dataTempGf, fct = mnthLab)
+
+#Remove data with raised final quality flag
+dataTempGf[which(qfTempGf$dataDfFlux.qfTempAirSoni == 1), "tempAirSoni"] <- NaN
+dataTempGf[which(qfTempGf$dataDfFlux.qfTempAirTop == 1), "tempAirTop"] <- NaN
+
+#Run Replicate stream gap-filling function
+test <- def.gf.rep(dataGf = dataTempGf, NameVarGf = "tempAirSoni", NameVarRep = "tempAirTop")
+
+test2 <- def.gf.rep(dataGf = dataTempGf, NameVarGf = "tempAirTop", NameVarRep = "tempAirSoni")
 
 ##############################################################################
 #Combine flux and met data
