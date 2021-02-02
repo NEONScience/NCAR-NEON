@@ -22,7 +22,7 @@ rm(list = ls())
 #############################################################
 
 #Call the R HDF5 Library
-packReq <- c('tidyverse','neonUtilities')# for tidyverse: joining and wrangling data; neonUtilities: NEON data download via the API
+packReq <- c('tidyverse','neonUtilities','aws.s3')# for tidyverse: joining and wrangling data; neonUtilities: NEON data download via the API
 
 #Install and load all required packages
 lapply(packReq, function(x) {
@@ -38,6 +38,20 @@ lapply(packReq, function(x) {
 # # geoNEON - for getting spatial data about sampling sites. uncomment and run line below if need this package
 # # install_github('NEONScience/NEON-geolocation/geoNEON', dependencies=T) 
 # library(geoNEON)
+
+###############################################################################
+#Output to S3 ENV variable definitions
+###############################################################################
+#Set ENV variables
+base::Sys.setenv("S3PATHUPLD" = "NEON/surf_files")
+base::Sys.setenv("NEON_S3_ACCESS_KEY_ID" = "neon-ncar-writer")
+#base::Sys.setenv("NEON_S3_SECRET_KEY" = "Access-key-needed")
+base::Sys.setenv("NEON_S3_ENDPOINT" = "s3.data.neonscience.org")
+base::Sys.setenv("NEON_S3_OUTPUT_BUCKET" = "neon-ncar")
+
+#Grab needed ENV variable
+S3PathUpld <- base::Sys.getenv("S3PATHUPLD")
+
 
 
 #############################################################
@@ -186,25 +200,19 @@ varMetaSurf <- rbind(varMeta,varMetaAdd)
 #Sort dataframe alphabetically
 varMetaSurf <- varMetaSurf[order(varMetaSurf$fieldName),]
 
+
+fileOutMeta <- "varMetaSurf.csv"
 # Also write the 'variables' file, for units
-write.csv(varMetaSurf, file = paste0(inputs, "varMetaSurf.csv"), row.names = FALSE)
+write.csv(varMetaSurf, file = paste0(inputs, fileOutMeta), row.names = FALSE)
 
 ###############################################################################
 #Output to S3
 ###############################################################################
 
-source <- paste(localPath, filename, sep="/")
-target <- paste(s3Path, s3filename, sep="/")
-if (!file.exists(source)) {
-  stop(paste0("source file does not exist. Check file path: ", source))
-}
-rlog$debug(paste0("from: ", source))
-rlog$debug(paste0("to: ", target))
 
-tryCatch({aws.s3::put_object(file=source, object=target, bucket=AWS_S3_BUCKET, region=region)},
-         error=function(cond) {
-           stop(paste0("Failed to upload file ", filename, "! Please check settings with ECS."))
-         })
+#Upload PDF to ECS
+accs::upload.to.ecs(s3Path = S3PathUpld, localPath = inputs, s3filename = fileOutMeta, filename = fileOutMeta)
+
 
 
 
