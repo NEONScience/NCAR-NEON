@@ -1,0 +1,8 @@
+"domainID","siteID","decimalLatitude","decimalLongitude","elevation","ecosystemType_Megapit","ecoregionWWF_Megapit","landCover_Megapit","dominantPlants_Tower","horizonName","biogeoTopDepth","biogeoBottomDepth","carbonTot","nitrogenTot","phH2o","coarseFrag2To5","coarseFrag5To20","coarseFrac2to20","sandTotal","siltTotal","clayTotal","bulkDensTopDepth","bulkDensBottomDepth","bulkDensExclCoarseFrag"
+"D06","KONA",39.10828,-96.61044,325,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","Ap",0,12,19.1,2.8,7.9,1,0,0.1,5.5,58.6,35.9,0,10,1.2811
+"D06","KONA",39.10828,-96.61044,325,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","Bt1",12,31,16.8,2.8,7.2,0,0,0,3.8,53.3,42.9,13,23,1.3534
+"D06","KONA",39.10828,-96.61044,325,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","Bt2",31,54,10.6,2.7,6.8,0,0,0,3.4,51.7,44.9,32,42,NA
+"D06","KONA",39.10828,-96.61044,325,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","Bt3",54,89,6,2,7,0,0,0,2.6,53.5,43.9,65,75,1.7187
+"D06","KONA",39.10828,-96.61044,325,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","Btss",89,119,4.5,2.2,7.7,131,0,13.1,1.6,53.8,44.6,94,97,1.6579
+"D06","KONA",39.10828,-96.61044,325,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","Btkss",119,156,6.9,2.3,8.3,0,0,0,3.5,56.6,39.9,121,124,1.644
+"D06","KONA",39.10828,-96.61044,325,"Agricultural","temperate grassland, savanna and shrubland","cultivated","","Btk",156,206,3.7,1.8,8.3,0,0,0,4.8,61.9,33.3,160,163,1.6118
