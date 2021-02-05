@@ -33,16 +33,10 @@ lapply(packReq, function(x) {
   }})
 
 
-# # Load packages - Git 
-# library(devtools)
-# # geoNEON - for getting spatial data about sampling sites. uncomment and run line below if need this package
-# # install_github('NEONScience/NEON-geolocation/geoNEON', dependencies=T) 
-# library(geoNEON)
-
 ###############################################################################
-#Output to S3 ENV variable definitions
+#Set options to local vs s3 and define S3 ENV variables
 ###############################################################################
-MethOut <- c("local", "s3")[2]
+MethOut <- c("local", "s3")[1] # CHANGE ME FOR DESIRED CONFIGURATION
 
 if(MethOut == "s3"){
 #Set ENV variables
@@ -58,9 +52,8 @@ S3PathUpld <- base::Sys.getenv("S3PATHUPLD")
 
 
 #############################################################
-#Workflow parameters and helper files
+#Set paths and load helper file
 #############################################################
-
 
 # Set directory - add for new users as needed
 # user-customizeable access to input and output data directories
@@ -68,7 +61,7 @@ DirUsr <- c(
   dd = "~/eddy/data/CLM/surf",
   sw = "/Users/sweintraub/Documents/GitHub/NCAR-NEON/surfaceData",
   dock = tempdir()
-)["dd"]
+)["sw"] # CHANGE ME FOR CURRENT USER
 
 #Create input output directories
   inputs <- DirUsr
@@ -76,7 +69,6 @@ DirUsr <- c(
   
 #if folder doesn't exist create it
 if(!dir.exists(outputs)) dir.create(outputs, recursive = TRUE)
-
 
 # Add info about megapit land cover (from TIS) and dominant plants in the tower (pheno)
 cover <- read.csv("https://s3.data.neonscience.org/neon-ncar/NEON/surf_files/inpMeta/tower.site.metadata.csv", 
@@ -105,7 +97,7 @@ list2env(mgp,envir=.GlobalEnv)
 # Remove empty rows and audit samples - biogeo table
 mgp_perbiogeo.1 <- mgp_perbiogeosample %>%
   filter(!biogeoID == "",!biogeoSampleType == "Audit") %>%
-  mutate(coarseFrac2to20 = (coarseFrag2To5 + coarseFrag5To20)*.1) # fraction of coarse frags 2-20
+  mutate(coarseFrac2to20 = (coarseFrag2To5 + coarseFrag5To20)*.1) # percent of soil mass that is coarse fragments 2-20 mm
   
 # Remove empty rows and audit samples - bulk dens table
 mgp_perbulk.1 <- mgp_perbulksample %>%
@@ -175,6 +167,7 @@ mgp_all.2 <- mgp_all.1 %>%
          bulkDensBottomDepth, 
          bulkDensExclCoarseFrag)
 
+
 ##############################################################################
 #Prepare and export single-site files
 ##############################################################################
@@ -192,27 +185,73 @@ for (i in 1:length(mgp_all.list)) {
 #Prepare and write variable description metadata
 ##############################################################################
 
-
 #List of variables output
-varList <- c("domainID", "siteID", "decimalLatitude","decimalLongitude","elevation","ecosystemType_Megapit","ecoregionWWF_Megapit","landCover_Megapit", "dominantPlants_Tower","horizonName", "biogeoTopDepth","biogeoBottomDepth", "carbonTot","nitrogenTot","phH2o", "coarseFrag2To5","coarseFrag5To20","coarseFrac2to20", "sandTotal", "siltTotal", "clayTotal", "bulkDensTopDepth", "bulkDensBottomDepth", "bulkDensExclCoarseFrag")
+varList <-
+  c(
+    "domainID",
+    "siteID",
+    "decimalLatitude",
+    "decimalLongitude",
+    "elevation",
+    "ecosystemType_Megapit",
+    "ecoregionWWF_Megapit",
+    "landCover_Megapit",
+    "dominantPlants_Tower",
+    "horizonName",
+    "biogeoTopDepth",
+    "biogeoBottomDepth",
+    "carbonTot",
+    "nitrogenTot",
+    "phH2o",
+    "coarseFrag2To5",
+    "coarseFrag5To20",
+    "coarseFrac2to20",
+    "sandTotal",
+    "siltTotal",
+    "clayTotal",
+    "bulkDensTopDepth",
+    "bulkDensBottomDepth",
+    "bulkDensExclCoarseFrag"
+  )
 
 #Remove duplicate variable descriptions
 varSub <- variables_00096[!duplicated(variables_00096$fieldName),]
 
 #Filter and subset variable description metadata
-varMeta <- varSub %>% filter(fieldName %in% varList) %>% select(fieldName, description, dataType, units)
-#Metadata for additional data streams ##TODO:: move to internal data later
-varMetaAdd <- data.frame(fieldName = c("ecosystemType_Megapit","ecoregionWWF_Megapit","landCover_Megapit", "dominantPlants_Tower", "coarseFrac2to20"), description = c("The predominant ecosystem type found at the site","The ecoregion at the site","The landcover type found at the site","The most dominant plant species found at the site", "Coarse fragment (2-20 mm) content of the <20 mm size fraction of the biogeochemistry soil sample"), dataType = c("string","string","string","string","real"), units = c(NA,NA,NA,NA,"	gramsPerKilogram"))
-#Combine metadata to final dataframe
-varMetaSurf <- rbind(varMeta,varMetaAdd)
+varMeta <- varSub %>% 
+  filter(fieldName %in% varList) %>% 
+  select(fieldName, description, dataType, units)
 
-#Sort dataframe alphabetically
-varMetaSurf <- varMetaSurf[order(varMetaSurf$fieldName),]
+#Metadata for additional data streams ##TODO:: move to internal data later
+varMetaAdd <-
+  data.frame(
+    fieldName = c(
+      "ecosystemType_Megapit",
+      "ecoregionWWF_Megapit",
+      "landCover_Megapit",
+      "dominantPlants_Tower",
+      "coarseFrac2to20"
+    ),
+    description = c(
+      "The predominant ecosystem type found at the location of the megapit",
+      "The WWF ecoregion at the location of the megapit",
+      "The landcover type found at the location of the megapit",
+      "The most dominant plant species found in the tower airshed",
+      "Coarse fragment (2-20 mm) percentage of the <20 mm size fraction of the biogeochemistry soil sample"
+    ),
+    dataType = c("string", "string", "string", "string", "real"),
+    units = c(NA, NA, NA, NA, "percent")
+  )
+
+#Combine metadata to final dataframe, arrange by field name
+varMetaSurf <- bind_rows(varMeta,varMetaAdd) %>%
+  arrange(fieldName)
 
 #Output filename for variable metadata
 fileOutMeta <- "varMetaSurf.csv"
 # Also write the 'variables' file, for units
-write.csv(varMetaSurf, file = paste0(inputs, fileOutMeta), row.names = FALSE)
+write.csv(varMetaSurf, file = paste(inputs, fileOutMeta, sep = "/"), row.names = FALSE)
+
 
 ###############################################################################
 #Output to S3
@@ -221,7 +260,12 @@ write.csv(varMetaSurf, file = paste0(inputs, fileOutMeta), row.names = FALSE)
 if(MethOut == "s3"){
 
 #Upload PDF to ECS
-accs::upload.to.ecs(s3Path = S3PathUpld, localPath = inputs, s3filename = fileOutMeta, filename = fileOutMeta)
+  accs::upload.to.ecs(
+    s3Path = S3PathUpld,
+    localPath = inputs,
+    s3filename = fileOutMeta,
+    filename = fileOutMeta
+  )
 
 #Grab all output files names
 fileOut <- base::list.files(outputs)  
@@ -230,7 +274,12 @@ fileOut <- base::list.files(outputs)
 lapply(fileOut, function(x){
   print(x)
   #Function to upload to ECS
-  accs::upload.to.ecs(s3Path = S3PathUpld, localPath = outputs, s3filename = x, filename = x) 
+  accs::upload.to.ecs(
+    s3Path = S3PathUpld,
+    localPath = outputs,
+    s3filename = x,
+    filename = x
+  ) 
 })#End lapply for writing data out to S3
 
 } #End if statement to write to S3
