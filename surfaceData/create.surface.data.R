@@ -61,7 +61,7 @@ DirUsr <- c(
   dd = "~/eddy/data/CLM/surf",
   sw = "/Users/sweintraub/Documents/GitHub/NCAR-NEON/surfaceData",
   dock = tempdir()
-)["sw"] # CHANGE ME FOR CURRENT USER
+)["dd"] # CHANGE ME FOR CURRENT USER
 
 #Create input output directories
   inputs <- DirUsr
@@ -73,7 +73,6 @@ if(!dir.exists(outputs)) dir.create(outputs, recursive = TRUE)
 # Add info about megapit land cover (from TIS) and dominant plants in the tower (pheno)
 cover <- read.csv("https://s3.data.neonscience.org/neon-ncar/NEON/surf_files/inpMeta/tower.site.metadata.csv", 
                   header = T, stringsAsFactors = F)
-
 
 ##############################################################################
 #Megapit soil data download (DP1.00096.001)
@@ -177,6 +176,19 @@ mgp_all.list <- split(mgp_all.2, mgp_all.2$siteID)
 
 # Write them to the GitHub folder
 for (i in 1:length(mgp_all.list)) {
+  #i <- 1 
+  
+  #Grab the same tower lat and lon
+  tmpMeta <- try(accs::retrieve.location.metadata(resturl='http://den-prodcdsllb-1.ci.neoninternal.org/cdsWebApp', namedlocation=names(mgp_all.list[i]), includedescendants=TRUE, request = c('LatTow','LonTow')), silent = TRUE)
+  
+  #Logical test for metadata return (test for error message)
+  if(class(tmpMeta) != "try-error"){
+  #Add LatTow and LonTow to output data.frame
+  mgp_all.list[[i]]$LatTow <- as.numeric(tmpMeta[tmpMeta$name == "LatTow","value"])
+  mgp_all.list[[i]]$LonTow <- as.numeric(tmpMeta[tmpMeta$name == "LonTow","value"]) + 360 #Longitude of tower (degrees east)
+  } #End logical test for an error return
+  
+  #write output CSV
   write.csv(mgp_all.list[[i]], file = paste0(outputs,"/", names(mgp_all.list[i]), "_surfaceData.csv"), row.names = FALSE)
 }
 
@@ -230,17 +242,21 @@ varMetaAdd <-
       "ecoregionWWF_Megapit",
       "landCover_Megapit",
       "dominantPlants_Tower",
-      "coarseFrac2to20"
+      "coarseFrac2to20",
+      "LatTow",
+      "LonTow"
     ),
     description = c(
       "The predominant ecosystem type found at the location of the megapit",
       "The WWF ecoregion at the location of the megapit",
       "The landcover type found at the location of the megapit",
       "The most dominant plant species found in the tower airshed",
-      "Coarse fragment (2-20 mm) percentage of the <20 mm size fraction of the biogeochemistry soil sample"
+      "Coarse fragment (2-20 mm) percentage of the <20 mm size fraction of the biogeochemistry soil sample",
+      "The geographic latitude of the NEON tower (in decimal degrees, WGS84) of the geographic center of the reference area",
+      "The geographic longitude of the NEON tower (in decimal degrees east, WGS84) of the geographic center of the reference area"
     ),
-    dataType = c("string", "string", "string", "string", "real"),
-    units = c(NA, NA, NA, NA, "percent")
+    dataType = c("string", "string", "string", "string", "real", "real", "real"),
+    units = c(NA, NA, NA, NA, "percent", "decimalDegree", "decimalDegree")
   )
 
 #Combine metadata to final dataframe, arrange by field name
