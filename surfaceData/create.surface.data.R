@@ -40,7 +40,7 @@ MethOut <- c("local", "s3")[1] # CHANGE ME FOR DESIRED CONFIGURATION
 
 if(MethOut == "s3"){
 #Set ENV variables
-base::Sys.setenv("S3PATHUPLD" = "NEON/surf_files")
+base::Sys.setenv("S3PATHUPLD" = "NEON/surf_files/v1")
 base::Sys.setenv("NEON_S3_ACCESS_KEY_ID" = "neon-ncar-writer")
 #base::Sys.setenv("NEON_S3_SECRET_KEY" = "Access-key-needed")
 base::Sys.setenv("NEON_S3_ENDPOINT" = "s3.data.neonscience.org")
