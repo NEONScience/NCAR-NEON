@@ -1,0 +1,32 @@
+FROM rhub/r-minimal
+
+WORKDIR /home/NCAR-NEON
+COPY . .
+
+# Build R dependencies using two cpu's worth of resources
+ENV MAKEFLAGS='-j3'
+
+# add dependencies
+RUN apk update \
+&& apk add \ 
+      bash \
+      openssh \
+      gcc \
+      g++ \
+      gfortran \
+      libquadmath \
+      linux-headers \
+      libc-dev \
+      hdf5-dev \
+      netcdf-dev \
+      curl-dev \
+      musl-dev \
+      libxml2-dev \
+      libgit2-dev \
+
+# Installing R package dependencies that are only workflow related (including CI combiner)
+&& installr -d \
+      hdf5r \
+      REddyProc \
+      ncdf4 \
+      devtools 

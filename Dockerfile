@@ -45,7 +45,7 @@ ENV MAKEFLAGS='-j3'
 
     # Installing R package dependencies that are only workflow related (including CI combiner)
     && install2.r --error \
-    rhdf5 \
+    hdf5r \
     REddyProc \
     ncdf4 \
     devtools \
