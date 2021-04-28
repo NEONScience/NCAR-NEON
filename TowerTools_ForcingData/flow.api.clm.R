@@ -1,11 +1,11 @@
 ##############################################################################################
-#' @title Workflow to NCAR CLM data set
+#' @title Workflow to create NCAR CLM data set
 
 #' @author
 #' David Durden \email{eddy4R.info@gmail.com}
 
 #' @description 
-#' Workflow for collating NEON data from API, gap-filling, and packaging in NCAR CLM netcdf format.
+#' Workflow for collating NEON data from API, gap-filling, and packaging in NCAR CLM netcdf format. The data are then uploaded to the S3 bucket.
 
 # changelog and author contributions / copyrights
 # David Durden (2019-07-05)
@@ -13,6 +13,7 @@
 # David Durden (2020-05-31)
 # Updating to use neonUtilities for all data retrieval from API
 ##############################################################################################
+
 
 #############################################################
 #Dependencies
@@ -38,12 +39,27 @@ devtools::install_github(c("NEONScience/eddy4R/pack/eddy4R.base",
 #Setup Environment
 options(stringsAsFactors=F)
 
+###############################################################################
+#Set options to local vs s3 and define S3 ENV variables
+###############################################################################
+MethOut <- c("local", "s3")[1] # CHANGE ME FOR DESIRED CONFIGURATION
 
-#############################################################
+if(MethOut == "s3"){
+  #Set ENV variables
+  base::Sys.setenv("S3PATHUPLD" = "NEON/surf_files/v1")
+  base::Sys.setenv("NEON_S3_ACCESS_KEY_ID" = "neon-ncar-writer")
+  #base::Sys.setenv("NEON_S3_SECRET_KEY" = "Access-key-needed")
+  base::Sys.setenv("NEON_S3_ENDPOINT" = "s3.data.neonscience.org")
+  base::Sys.setenv("NEON_S3_OUTPUT_BUCKET" = "neon-ncar")
+  
+  #Grab needed ENV variable
+  S3PathUpld <- base::Sys.getenv("S3PATHUPLD")
+}
+##############################################################################
 #Workflow parameters
-#############################################################
+##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "SRER"
+Site <- "HARV"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -59,6 +75,7 @@ dateEnd <- "2019-01-31"
 lowmem <- FALSE
 maxmonths <- 3 
 user <- 'David Durden'
+methPlot <- TRUE #Should data quality plots be created?
 
 #The version data for the FP standard conversion processing
 ver <- paste0("v",format(Sys.time(), "%Y%m%d"))
@@ -77,9 +94,9 @@ if("METHPARAFLOW" %in% base::names(base::Sys.getenv())) {
 }
 
 
-#############################################################
+##############################################################################
 #static workflow parameters
-#############################################################
+##############################################################################
 
 #H5 extraction directory
 DirExtr <- paste0(DirDnld,"/extr")
@@ -269,8 +286,9 @@ dataList <- list()
 
 
 
-###################################################################################
+##############################################################################
 #Time regularization if needed
+##############################################################################  
 # Regularize timeseries to 30 minutes in case missing data after CI processing
 timeRglr <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataDfFlux$TIMESTAMP_START, tz = "UTC"), 
                                   dataMeas = dataDfFlux, 
@@ -288,7 +306,7 @@ dataDfFlux$TIMESTAMP_END <- NULL
 dataDfFlux$TIMESTAMP <- timeRglr$timeRglr+ lubridate::minutes(30)
  # dataDfFlux$TIMESTAMP_START <- strftime(timeRglr$timeRglr , format = "%Y%m%d%H%M")
  # dataDfFlux$TIMESTAMP_END <- strftime(timeRglr$timeRglr+ lubridate::minutes(30), format = "%Y%m%d%H%M")
-###################################################################################
+
 
 dataDfFlux$NEE[(which(dataDfFlux$qfTurbFlow == 1))] <- NaN
 dataDfFlux$LE[(which(dataDfFlux$qfTurbFlow == 1))] <- NaN
@@ -359,8 +377,11 @@ dataMetSub <- lapply(seq_along(varDp), function(x) {
 names(dataMetSub) <- names(varDp)
 
 #Remove unwanted measurement levels
+dataMetSub$Rg_002 <- dataMetSub$Rg[!dataMetSub$Rg$verticalPosition == IdVer,]
 dataMetSub$Rg <- dataMetSub$Rg[dataMetSub$Rg$verticalPosition == IdVer,]
+dataMetSub$FLDS_MDS_002 <- dataMetSub$FLDS_MDS[!dataMetSub$FLDS_MDS$verticalPosition == IdVer,]
 dataMetSub$FLDS_MDS <- dataMetSub$FLDS_MDS[dataMetSub$FLDS_MDS$verticalPosition == IdVer,]
+dataMetSub$rH_002 <- dataMetSub$rH[!dataMetSub$rH$horizontalPosition == "003",]
 dataMetSub$rH <- dataMetSub$rH[dataMetSub$rH$horizontalPosition == "003",]
 
 #time regularization of met data
@@ -375,7 +396,7 @@ return(timeRglrMet$dataRglr)
 })#End lapply for time regularization of met data
 
 #Add names to list of Dataframes of regularized data
-names(dataMetSubRglr) <- names(varDp)
+names(dataMetSubRglr) <- names(dataMetSub)
 
 #Grab just the Met data of interest for the forcing data
 dataDfMet <- lapply(seq_along(subVar), function(x){
@@ -397,36 +418,66 @@ dataDfMet$radNet <-dataMetSubRglr$Rg[["inSWMean"]] - dataMetSubRglr$Rg[["outSWMe
 ##############################################################################
 #Combine streams for gapfilling
 ##############################################################################
-
+#Initialize data lists
+dataGf <- list()
+qfGf <- list()
 
 #Grab temp data streams
-dataTempGf <- data.frame("tempAirSoni" = dataDfFlux$tempAirSoni, "tempAirTop" = dataDfFlux$tempAirTop, "TBOT" = dataDfMet$TBOT)
+dataGf$Tair <- data.frame("Tair"  = dataDfFlux$tempAirSoni, "Tair_002"  = dataDfFlux$tempAirTop)
 #Grab temp qfqm streams
-qfTempGf <- data.frame(dataDfFlux$qfTempAirSoni,dataDfFlux$qfTempAirTop)
+qfGf$Tair <- data.frame("Tair" = dataDfFlux$qfTempAirSoni,"Tair_002" = dataDfFlux$qfTempAirTop)
 
+#Grab Pa data streams
+dataGf$Pa_MDS <- data.frame("Pa_MDS" = dataMetSubRglr$Pa_MDS$staPresMean, "Pa_MDS_002" = dataDfFlux$presAtmTurb)
+#Grab temp qfqm streams
+qfGf$Pa_MDS <- data.frame("Pa_MDS" = dataMetSubRglr$Pa_MDS$staPresFinalQF, "Pa_MDS_002" = dataDfFlux$qfPresAtmTurb)
+
+
+#Grab rH data streams
+dataGf$rH <- data.frame("rH" = dataMetSubRglr$rH$RHMean, "rH_002" = dataMetSubRglr$rH_002$RHMean)
+#Grab rH qfqm streams
+qfGf$rH <- data.frame("rH" = dataMetSubRglr$rH$RHFinalQF, "rH_002" = dataMetSubRglr$rH_002$RHFinalQF)
+
+#Grab Rg data streams
+dataGf$Rg <- data.frame("Rg" = dataMetSubRglr$Rg$inSWMean, "Rg_002" = dataMetSubRglr$Rg_002$inLWMean)
+#Grab Rg qfqm streams
+qfGf$Rg <- data.frame("Rg" = dataMetSubRglr$Rg$inSWFinalQF, "Rg_002" = dataMetSubRglr$Rg_002$outLWFinalQF)
+
+#Grab FLDS data streams
+dataGf$FLDS_MDS <- data.frame("FLDS_MDS" = dataMetSubRglr$FLDS_MDS$inLWMean, "FLDS_MDS_002" = dataMetSubRglr$FLDS_MDS_002$inLWMean)
+#Grab FLDS qfqm streams
+qfGf$FLDS_MDS <- data.frame("FLDS_MDS" = dataMetSubRglr$FLDS_MDS$inLWFinalQF, "FLDS_MDS_002" = dataMetSubRglr$FLDS_MDS_002$inLWFinalQF)
+
+#Grab radNet data streams
+dataGf$radNet <- data.frame("radNet" = dataMetSubRglr$Rg[["inSWMean"]] - dataMetSubRglr$Rg[["outSWMean"]] + dataMetSubRglr$Rg[["inLWMean"]] - dataMetSubRglr$Rg[["outLWMean"]]
+, "radNet_002" = dataMetSubRglr$Rg_002[["outLWMean"]]
+)
+#Grab FLDS qfqm streams
+qfGf$radNet <- data.frame("radNet" = dataMetSubRglr$Rg$inSWFinalQF, "radNet_002" = dataMetSubRglr$Rg_002$outLWFinalQF)
 #Add a Month column
-dataTempGf$mnthLab <- strftime(dataDfFlux$TIMESTAMP, format = "%Y%m")
+#dataTempGf$mnthLab <- strftime(dataDfFlux$TIMESTAMP, format = "%Y%m")
 
 #Number of variables with missing data
-varMiss <- n_var_miss(dataTempGf)
+#varMiss <- n_var_miss(dataTempGf)
 
 #Upset interactions plot of missing data
-gg_miss_upset(dataTempGf, nsets = varMiss)
+#gg_miss_upset(dataTempGf, nsets = varMiss)
 
 #Plot of the amount of missing data per variable (as %)
 #gg_miss_var(dataDfMet, show_pct = TRUE)
 
 #Heat map of missing data
-gg_miss_fct(dataTempGf, fct = mnthLab)
+#gg_miss_fct(dataTempGf, fct = mnthLab)
 
 #Remove data with raised final quality flag
-dataTempGf[which(qfTempGf$dataDfFlux.qfTempAirSoni == 1), "tempAirSoni"] <- NaN
+dataGf$Tair[which(qfGf$Tair == 1), "Tair"] <- NaN
 dataTempGf[which(qfTempGf$dataDfFlux.qfTempAirTop == 1), "tempAirTop"] <- NaN
 
+#Reported gap-filled outputs
+rpt <- list()
 #Run Replicate stream gap-filling function
-test <- def.gf.rep(dataGf = dataTempGf, NameVarGf = "tempAirSoni", NameVarRep = "tempAirTop")
+rpt$Tair <- def.gf.rep(dataGf = dataGf$Tair, NameVarGf = "Tair", NameVarRep = "Tair_002")
 
-test2 <- def.gf.rep(dataGf = dataTempGf, NameVarGf = "tempAirTop", NameVarRep = "tempAirSoni")
 
 ##############################################################################
 #Combine flux and met data
@@ -555,7 +606,7 @@ dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m", tz='UTC')
 dataClm$yearMon[1:20]
 
 ##############################################################################
-#Write output to CLM
+#Write CLM output
 ##############################################################################
 
 #Define missing value fill
@@ -671,11 +722,34 @@ remove(time, timeStep, fileOutNcdf, ncnew, Data.mon,
   } #End of monthloop
 
 #} #End of year loop
+###############################################################################
+#Output to S3
+###############################################################################
+#Should data be written out to S3
+if(MethOut == "s3"){
+  #Grab all output files names
+  fileOut <- base::list.files(path = DirOut, pattern = ".nc")  
+  
+  #Upload to S3
+  lapply(fileOut, function(x){
+    print(x)
+    #Function to upload to ECS
+    accs::upload.to.ecs(
+      s3Path = S3PathUpld,
+      localPath = outputs,
+      s3filename = x,
+      filename = x
+    ) 
+  })#End lapply for writing data out to S3
+  
+} #End if statement to write to S3
 
 ##############################################################################
 # plot input data
 # this could be done better, but will work for now
 ##############################################################################
+if(methPlot == TRUE){
+
 # example from https://felixfan.github.io/stacking-plots-same-x/
 mm <- melt(subset(dataClm, select=c(DateTime,TBOT, RH,WIND,PRECTmms, PSRF,FLDS,FSDS)), id.var="DateTime")
 ggplot(mm, aes(x = DateTime, y = value)) + 
@@ -727,4 +801,4 @@ row.plot <- dataClm %>%
 row.plot
 
 DirOut
-
+}
