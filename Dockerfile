@@ -1,6 +1,6 @@
 # start with the ropensci image including debian:testing, r-base, rocker/rstudio, rocker/hadleyverse
 # https://hub.docker.com/r/rocker/ropensci/
-FROM rocker/rstudio:3.6.1
+FROM quay.io/battelleecology/rstudio:3.6.1
 
 WORKDIR /home/NCAR-NEON
 # copy clone of GitHub source repo "NEONScience/NEON-FIU-algorithm" to the Docker image
@@ -24,10 +24,12 @@ ENV MAKEFLAGS='-j3'
             libsz2 \
             #libmysql++3v5 \
             #libmariadbclient18 \
-            #libpng-tools \
-            #libproj-dev \
+            libpng-tools \
+            libproj-dev \
 			      libssl-dev \
+			      libgdal-dev \
 			      libnetcdf-dev \
+			      libgsl-dev \
 			      # Library for git via ssh key
 			      ssh \
 			      vim \
@@ -35,9 +37,9 @@ ENV MAKEFLAGS='-j3'
             #mysql-common" \
             #fftw3\
     && BUILDDEPS="libhdf5-dev \
-                  #libjpeg-dev \
-                 #libtiff5-dev \
-                 #libpng-dev \
+                  libjpeg-dev \
+                 libtiff5-dev \
+                 libpng-dev \
                  #libmysql++-dev \
                  #fftw3-dev \
                  " \
@@ -45,13 +47,21 @@ ENV MAKEFLAGS='-j3'
 
     # Installing R package dependencies that are only workflow related (including CI combiner)
     && install2.r --error \
-    hdf5r \
+    BiocManager \
     REddyProc \
     ncdf4 \
     devtools \
+    reshape2 \
+    ggplot2 \
+    gridExtra \
+    tidyverse \
+    naniar \
+    Rfast \
+    
+     ## from bioconductor
+    && R -e "BiocManager::install('rhdf5', update=FALSE, ask=FALSE)" \
 
     # provide read and write access for default R library location to Rstudio users
-    # TODO: PERHAPS THIS SHOULD JUST CHOWN TO rstudio instead of setting 777 perms? And at the end of the file -sj
     && chmod -R 777 /usr/local/lib/R/site-library \
     # Clean up build dependencies
     && apt-get remove --purge -y $BUILDDEPS \
