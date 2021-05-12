@@ -1,15 +1,15 @@
-## Dependencies
+### Dependencies
 https://github.com/NEONScience/bald - dev-ddl branch
 https://github.com/NEONScience/S3-netcdf-python - issue29 branch
 rdflib-jsonld
 rclone
 
-## Configuration
+### Configuration
 Configure rclone remotes for source and target
 Configure S3-netcdf-python ~/.s3nc.json for target
 Configure keys for target, can pull from above config
 
-## Args
+### Args
 --sourceRemote rclone remote with delete for source
 --sourceBucket source bucket containing staged data
 --targetRemote rclone remote for target
