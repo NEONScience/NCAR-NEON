@@ -28,7 +28,10 @@
 site <- "NIWO"
 
 #type of data file to download atmospheric (datm) or surface (surf) forcing files
-TypeFile <- c("datm_files", "surf_files")[1]
+TypeFile <- c("atm/cdeps", "surf_files", "eval_files")[1]
+
+#Adding version number to s3 path
+versData <- c("v1")
 
 
 #The version data for the FP standard conversion processing
@@ -46,10 +49,10 @@ PrdWndwDnld <- strftime(DateSeq, format = "%Y-%m")
 
 
 #Create URL for data files
-urlDnld <- paste0("https://s3.data.neonscience.org/neon-ncar/NEON/",TypeFile,"/",site,"/",PrdWndwDnld,".nc")
+urlDnld <- ifelse(TypeFile == "surf_files", paste0("https://s3.data.neonscience.org/neon-ncar/NEON/",TypeFile,"/",versData,"/",site,"_surfaceData.csv") ,paste0("https://s3.data.neonscience.org/neon-ncar/NEON/",TypeFile,"/",versData,"/",site,"/",PrdWndwDnld,".nc"))
 
 #Download filename (full path)
-fileDnld <-  paste0(DirDnld,"/",site,"_",PrdWndwDnld,".nc")
+fileDnld <-  ifelse(TypeFile == "surf_files", paste0(DirDnld,"/",site,"_",versData,"_surfaceData.csv"), paste0(DirDnld,"/",site,"_",versData,"_",PrdWndwDnld,".nc"))
 
 #Download files
 sapply(seq_along(urlDnld), function(x){
