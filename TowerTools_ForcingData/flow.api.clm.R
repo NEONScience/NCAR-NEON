@@ -12,11 +12,13 @@
 #   original creation
 # David Durden (2020-05-31)
 # Updating to use neonUtilities for all data retrieval from API
+# David Durden (2020-04-24)
+# Updating gap-filling strategy
 ##############################################################################################
 
 
 #############################################################
-#Dependencies
+##!Dependencies
 #############################################################
 
 
@@ -40,26 +42,28 @@ devtools::install_github(c("NEONScience/eddy4R/pack/eddy4R.base",
 options(stringsAsFactors=F)
 
 ###############################################################################
-#Set options to local vs s3 and define S3 ENV variables
+##!Set options to local vs s3 and define S3 ENV variables
 ###############################################################################
-MethOut <- c("local", "s3")[1] # CHANGE ME FOR DESIRED CONFIGURATION
+MethOut <- c("local", "s3")[2] # CHANGE ME FOR DESIRED CONFIGURATION
 
 if(MethOut == "s3"){
   #Set ENV variables
-  base::Sys.setenv("S3PATHUPLD" = "NEON/surf_files/v1")
+  base::Sys.setenv("S3PATHUPLDATM" = "NEON/atm/cdeps/v1")
+  base::Sys.setenv("S3PATHUPLDEVAL" = "NEON/eval_files/v1")
   base::Sys.setenv("NEON_S3_ACCESS_KEY_ID" = "neon-ncar-writer")
-  #base::Sys.setenv("NEON_S3_SECRET_KEY" = "Access-key-needed")
+  base::Sys.setenv("NEON_S3_SECRET_KEY" = "Xq6pzt19bhw9EHjdYgffB1oTypVhNU6/2mbp7Z6o")
   base::Sys.setenv("NEON_S3_ENDPOINT" = "s3.data.neonscience.org")
   base::Sys.setenv("NEON_S3_OUTPUT_BUCKET" = "neon-ncar")
   
   #Grab needed ENV variable
-  S3PathUpld <- base::Sys.getenv("S3PATHUPLD")
+  S3PathUpldAtm <- base::Sys.getenv("S3PATHUPLDATM")
+  S3PathUpldEval <- base::Sys.getenv("S3PATHUPLDEVAL")
 }
 ##############################################################################
-#Workflow parameters
+##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "HARV"
+Site <- "BART"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -68,12 +72,12 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2019-01-31"
+dateEnd <- "2021-03-31"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
 lowmem <- FALSE
-maxmonths <- 3 
+maxmonths <- 2 
 user <- 'David Durden'
 methPlot <- TRUE #Should data quality plots be created?
 
@@ -82,7 +86,8 @@ ver <- paste0("v",format(Sys.time(), "%Y%m%d"))
 #Base directory for output
 DirOutBase <-paste0("~/eddy/data/CLM",ver)
 #Download directory for HDF5 files from the API
-DirDnld=tempdir()
+DirDnld= c("~/eddy/tmp/CLM",tempdir())[1]
+
 
 # check environment variables for eddy4R workflow, if it exists grab ENV variables 
 if("METHPARAFLOW" %in% base::names(base::Sys.getenv())) {
@@ -95,7 +100,7 @@ if("METHPARAFLOW" %in% base::names(base::Sys.getenv())) {
 
 
 ##############################################################################
-#static workflow parameters
+##!static workflow parameters
 ##############################################################################
 
 #H5 extraction directory
@@ -104,9 +109,13 @@ DirExtr <- paste0(DirDnld,"/extr")
 DirInp <- paste0(DirExtr,"/inp")
 #Append the site to the base output directory
 DirOut <- paste0(DirOutBase, "/", Site)
+DirOutAtm <- paste0(DirOutBase, "/", Site, "/atm")
+DirOutEval <- paste0(DirOutBase, "/", Site, "/eval")
 
 #Check if directory exists and create if not
-if(!dir.exists(DirOut)) dir.create(DirOut, recursive = TRUE)
+if(!dir.exists(DirOutAtm)) dir.create(DirOutAtm, recursive = TRUE)
+if(!dir.exists(DirOutEval)) dir.create(DirOutEval, recursive = TRUE)
+if(!dir.exists(DirExtr)) dir.create(DirExtr, recursive = TRUE)
 
 #DP number
 idDpFlux <- 'DP4.00200.001'
@@ -116,7 +125,7 @@ dateBgn <- as.Date(dateBgn) - lubridate::days(1) #neonUtitilities a month behind
 dateEnd <- as.Date(dateEnd)
 
 ##############################################################################
-#Flux data download
+##!Flux data download
 ##############################################################################
 
 #Download zip files
@@ -141,7 +150,7 @@ lapply(gzFile, R.utils::gunzip)
 fileNameHdf5 <- base::list.files(path = DirExtr, pattern = "*.h5", full.names = TRUE)
 
 ##############################################################################
-#Metadata determination
+##!Metadata determination
 ##############################################################################
 
 #Read site level metadata from HDF5
@@ -183,7 +192,7 @@ if(!base::is.null(metaSite$ZoneTime)) {
   rm(timeTmp01, timeTmp02)
 
 ##############################################################################
-#Flux data read in
+##!Flux data read in
 ##############################################################################
   
 #Initialize data List
@@ -193,10 +202,16 @@ dataList <- list()
   if(lowmem == FALSE) {
     # memory-intensive option, but faster
     # Read in all data at one time
-    dataList$dp04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), 
-                                              level = "dp04", avg = 30)
-    dataList$dp01 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), 
-                                              level = "dp01", avg = 30)  
+    dataList$dp04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp04", avg = 30)
+     
+    dp01Var <- c("rtioMoleDryH2o", "rtioMoleDryCo2", "veloXaxsYaxsErth","presAtm","tempAir","temp","frt00Samp")                                          
+                                                                                       
+    dataList$dp01 <- lapply(dp01Var, function(x) {
+      neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), 
+                                              level = "dp01", avg = 30, var = x)  
+    })#End of lapply for dp01
+    
+    names(dataList$dp01) <- dp01Var
     
     # Create flux data.frame
     dataDfFlux <-   data.frame(
@@ -206,26 +221,27 @@ dataList <- list()
       "LE" = dataList$dp04[[Site]]$data.fluxH2o.turb.flux, #Latent heat flux (turb)
       "Ustar" = dataList$dp04[[Site]]$data.fluxMome.turb.veloFric, #Friction velocity
       "H" = dataList$dp04[[Site]]$data.fluxTemp.turb.flux,#Sensible heat flux (turb)
-      "qfTurbFlow" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
-      "qfTurbH2oFinl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
-      "qfTurbCo2Finl" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
-      "WS_MDS" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
-      "qfWS_MDS" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.soni.veloXaxsYaxsErth.qfFinl"],
-      "presAtmTurb" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.co2Turb.presAtm.mean"],
-      "qfPresAtmTurb" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.presAtm.qfFinl"],
-      "presAtmBaro" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.presBaro.presAtm.mean"],
-      "qfPresAtmBaro" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.presBaro.presAtm.qfFinl"],
-      "tempAirSoni" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
-      , 
-      "qfTempAirSoni" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.soni.tempAir.qfFinl"],
-      "tempAirTop" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "data.tempAirTop.temp.mean"]
-      ,
-      "qfTempAirTop" = dataList$dp01[[Site]][which(dataList$dp01[[Site]]$verticalPosition == IdVer), "qfqm.tempAirTop.temp.qfFinl"]
-      
+      "qfTurbFlow" = dataList$dp01$frt00Samp[[Site]][which(dataList$dp01$frt00Samp[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
+      "qfTurbH2oFinl" = dataList$dp01$rtioMoleDryH2o[[Site]][which(dataList$dp01$rtioMoleDryH2o[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
+      "qfTurbCo2Finl" = dataList$dp01$rtioMoleDryCo2[[Site]][which(dataList$dp01$rtioMoleDryCo2[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
+      "WS_MDS" = dataList$dp01$veloXaxsYaxsErth[[Site]][which(dataList$dp01$veloXaxsYaxsErth[[Site]]$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
+      "qfWS_MDS" = dataList$dp01$veloXaxsYaxsErth[[Site]][which(dataList$dp01$veloXaxsYaxsErth[[Site]]$verticalPosition == IdVer), "qfqm.soni.veloXaxsYaxsErth.qfFinl"],
+      "presAtmTurb" = dataList$dp01$presAtm[[Site]][which(dataList$dp01$presAtm[[Site]]$verticalPosition == IdVer), "data.co2Turb.presAtm.mean"],
+      "qfPresAtmTurb" = dataList$dp01$presAtm[[Site]][which(dataList$dp01$presAtm[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.presAtm.qfFinl"],
+      "presAtmBaro" = dataList$dp01$presAtm[[Site]][which(dataList$dp01$presAtm[[Site]]$verticalPosition == IdVer), "data.presBaro.presAtm.mean"],
+      "qfPresAtmBaro" = dataList$dp01$presAtm[[Site]][which(dataList$dp01$presAtm[[Site]]$verticalPosition == IdVer), "qfqm.presBaro.presAtm.qfFinl"],
+      "tempAirSoni" = dataList$dp01$tempAir[[Site]][which(dataList$dp01$tempAir[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"], 
+      "qfTempAirSoni" = dataList$dp01$tempAir[[Site]][which(dataList$dp01$tempAir[[Site]]$verticalPosition == IdVer), "qfqm.soni.tempAir.qfFinl"],
+      "tempAirTop" = dataList$dp01$temp[[Site]][which(dataList$dp01$temp[[Site]]$verticalPosition == IdVer), "data.tempAirTop.temp.mean"],
+      "qfTempAirTop" = dataList$dp01$temp[[Site]][which(dataList$dp01$temp[[Site]]$verticalPosition == IdVer), "qfqm.tempAirTop.temp.qfFinl"]
       , stringsAsFactors = FALSE)
-    
+
+    #Remove dataList to free up space
+    rm(dataList)
+    invisible(gc()) #Clean up after removing object
   
-    } else {
+    } else 
+      {
     # Lower memory option: place zips in separate folders, read in data for each subdirectory 
     # and create a dataframe for each. Then concatenate the dataframes.
     
@@ -270,11 +286,20 @@ dataList <- list()
         "qfTurbH2oFinl" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
         "qfTurbCo2Finl" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
         "WS_MDS" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "data.soni.veloXaxsYaxsErth.mean"],
-        #"Pa_MDS" = dataList[[x]][[Site]]$dp01$data$h2oTurb[[paste0(LvlTowr,"_30m")]]$presAtm$mean,
-        "Tair" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
+        "qfWS_MDS" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.soni.veloXaxsYaxsErth.qfFinl"],
+        "presAtmTurb" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "data.co2Turb.presAtm.mean"],
+        "qfPresAtmTurb" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.presAtm.qfFinl"],
+        "presAtmBaro" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "data.presBaro.presAtm.mean"],
+        "qfPresAtmBaro" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.presBaro.presAtm.qfFinl"],
+        "tempAirSoni" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"]
+        , 
+        "qfTempAirSoni" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.soni.tempAir.qfFinl"]
+        #"tempAirTop" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "data.tempAirTop.temp.mean"],
+        #"qfTempAirTop" = tmpList_01[[Site]][which(tmpList_01[[Site]]$verticalPosition == IdVer), "qfqm.tempAirTop.temp.qfFinl"]
+        
         , stringsAsFactors = FALSE)
-    }
-    
+    }#End loop around segments
+      
     # clean up
     rm(tmpList_04, tmpList_01)
     
@@ -287,7 +312,7 @@ dataList <- list()
 
 
 ##############################################################################
-#Time regularization if needed
+##!Time regularization if needed
 ##############################################################################  
 # Regularize timeseries to 30 minutes in case missing data after CI processing
 timeRglr <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataDfFlux$TIMESTAMP_START, tz = "UTC"), 
@@ -318,10 +343,14 @@ dataDfFlux$qfTurbCo2Finl <- NULL
 dataDfFlux$qfTurbH2oFinl <- NULL
 dataDfFlux$qfTurbFlow <- NULL
 
-
+#Remove extraction directory
+# clean up temp directory
+base::file.remove(base::list.files(DirExtr, full.names = TRUE, recursive = TRUE), force = TRUE)
+# clean up temp directory
+base::file.remove(base::list.files(DirDnld, full.names = TRUE, recursive = TRUE), force = TRUE)
 
 ##############################################################################
-#Met data
+##!Met data
 ##############################################################################
 
 #Year and month of interest
@@ -334,17 +363,17 @@ dataDfFlux$qfTurbFlow <- NULL
 
 
 #List of DP numbers by eddy4R DP names
-listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001", "TBOT" = "DP1.00003.001")
+listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001", "TBOT" = "DP1.00003.001", "PAR" = "DP1.00024.001", "SW_DIR" = "DP1.00014.001", "WS_MDS" = "DP1.00001.001")
 
 #names for individual variables of interest
-varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
+varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min", "PAR" = "PARPAR_30min", "SW_DIR" = "SRDDP_30min", "WS_MDS" = "2DWSD_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
 
 #Sub data product variables
-subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inLWMean", "Rg" = "inSWMean", "Pa_MDS" = "staPresMean", "TBOT" = "tempTripleMean")
+subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inLWMean", "Rg" = "inSWMean", "Pa_MDS" = "staPresMean", "TBOT" = "tempTripleMean", "PAR" = "PARMean", "SW_DIR" = "gloRadMean", "WS_MDS" = "windSpeedMean")
 
 
 #Sub data product quality flags
-subVarQf <- c("PRECTmms_MDS" = "secPrecipFinalQF", "rH" = "RHFinalQF", "FLDS_MDS" = "inLWFinalQF", "Rg" = "inSWFinalQF", "Pa_MDS" = "staPresFinalQF", "TBOT" = "finalQF")
+subVarQf <- c("PRECTmms_MDS" = "secPrecipFinalQF", "rH" = "RHFinalQF", "FLDS_MDS" = "inLWFinalQF", "Rg" = "inSWFinalQF", "Pa_MDS" = "staPresFinalQF", "TBOT" = "finalQF", "PAR" = "PARFinalQF", "SW_DIR" = "gloRadFinalQF", "WS_MDS" = "windSpeedFinalQF")
 
 #Grab data for data products using neonUtilities
 #neonUtilities::getPackage(site_code = site, package = pack, year_month =  )
@@ -384,6 +413,23 @@ dataMetSub$FLDS_MDS <- dataMetSub$FLDS_MDS[dataMetSub$FLDS_MDS$verticalPosition 
 dataMetSub$rH_002 <- dataMetSub$rH[!dataMetSub$rH$horizontalPosition == "003",]
 dataMetSub$rH <- dataMetSub$rH[dataMetSub$rH$horizontalPosition == "003",]
 
+dataMetSub$PAR <- dataMetSub$PAR[dataMetSub$PAR$verticalPosition == IdVer,]
+
+
+
+
+dataMetSub$WS_MDS_002 <- dataMetSub$WS_MDS[dataMetSub$WS_MDS$verticalPosition == sprintf("%03d",as.integer(IdVer) - 20),]
+dataMetSub$WS_MDS <- dataMetSub$WS_MDS[dataMetSub$WS_MDS$verticalPosition == sprintf("%03d",as.integer(IdVer) - 10),]
+
+#logical statement looking for throughfall precip data
+if(any(grepl(pattern = "THRPRE_30min", x = names(dataMet[["PRECTmms_MDS"]])))){
+  for(idx in unique(dataMet$PRECTmms_MDS$THRPRE_30min$horizontalPosition)){
+    tmpVar <- paste0("PRECTmms_MDS_",idx)
+      dataMetSub[[tmpVar]] <- dataMet$PRECTmms_MDS$THRPRE_30min[dataMet$PRECTmms_MDS$THRPRE_30min$horizontalPosition == idx,]
+  }#End for loop for Throughfall
+
+}#End of logical statement looking for throughfall precip data
+
 #time regularization of met data
 dataMetSubRglr <- lapply(names(dataMetSub), function(x){
 timeRglrMet <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataMetSub[[x]]$startDateTime), 
@@ -398,34 +444,50 @@ return(timeRglrMet$dataRglr)
 #Add names to list of Dataframes of regularized data
 names(dataMetSubRglr) <- names(dataMetSub)
 
-#Grab just the Met data of interest for the forcing data
-dataDfMet <- lapply(seq_along(subVar), function(x){
-  #print(x)
-  #Grab the variables of interest
-  tmp <- dataMetSubRglr[[names(subVar[x])]][,grep(pattern = paste0("^",subVar[x]), x = names(dataMetSubRglr[[names(varDp[x])]]))] # use ^ to indicate the pattern starts with the name given
-  return(tmp)
-})
+#############TODO##############
+#May need to remove wiht latest updates
+######################################
+# #Grab just the Met data of interest for the forcing data
+# dataDfMet <- lapply(seq_along(subVar), function(x){
+#   #print(x)
+#   #Grab the variables of interest
+#   tmp <- dataMetSubRglr[[names(subVar[x])]][,grep(pattern = paste0("^",subVar[x]), x = names(dataMetSubRglr[[names(varDp[x])]]))] # use ^ to indicate the pattern starts with the name given
+#   return(tmp)
+# })
+# 
+# #Give the ReddyProc names
+# names(dataDfMet) <- names(varDp)
+# 
+# #Calculate precip rate from bulk
+# dataDfMet$PRECTmms_MDS <- dataDfMet$PRECTmms_MDS/1800 #1800 sec/0.5 hours
+# 
+# #Calculate net radiation
+# dataDfMet$radNet <-dataMetSubRglr$Rg[["inSWMean"]] - dataMetSubRglr$Rg[["outSWMean"]] + dataMetSubRglr$Rg[["inLWMean"]] - dataMetSubRglr$Rg[["outLWMean"]]
+####################################
 
-#Give the ReddyProc names
-names(dataDfMet) <- names(varDp)
-
-#Calculate precip rate from bulk
-dataDfMet$PRECTmms_MDS <- dataDfMet$PRECTmms_MDS/1800 #1800 sec/0.5 hours
-
-#Calculate net radiation
-dataDfMet$radNet <-dataMetSubRglr$Rg[["inSWMean"]] - dataMetSubRglr$Rg[["outSWMean"]] + dataMetSubRglr$Rg[["inLWMean"]] - dataMetSubRglr$Rg[["outLWMean"]]
 
 ##############################################################################
-#Combine streams for gapfilling
+##!Combine streams for gapfilling
 ##############################################################################
 #Initialize data lists
 dataGf <- list()
 qfGf <- list()
 
+#temporary list to deal with precip
+tmpList <- list()
+tmpList <- dataMetSubRglr[grep("PRECTmms_MDS", names(dataMetSubRglr), value = TRUE)]
+
+dataGf$PRECTmms_MDS <- as.data.frame(sapply(tmpList, function(x){
+  #x <- tmpList[[1]] #for testing
+  #print(names(x))
+  x[,grep("PrecipBulk", names(x))]
+}))
+
+
 #Grab temp data streams
-dataGf$Tair <- data.frame("Tair"  = dataDfFlux$tempAirSoni, "Tair_002"  = dataDfFlux$tempAirTop)
+dataGf$Tair <- data.frame("Tair"  = dataDfFlux$tempAirSoni, "Tair_002"  = dataDfFlux$tempAirTop, "Tair_003" = dataMetSubRglr$rH$tempRHMean)
 #Grab temp qfqm streams
-qfGf$Tair <- data.frame("Tair" = dataDfFlux$qfTempAirSoni,"Tair_002" = dataDfFlux$qfTempAirTop)
+qfGf$Tair <- data.frame("Tair" = dataDfFlux$qfTempAirSoni,"Tair_002" = dataDfFlux$qfTempAirTop, "Tair_003" = dataMetSubRglr$rH$tempRHFinalQF)
 
 #Grab Pa data streams
 dataGf$Pa_MDS <- data.frame("Pa_MDS" = dataMetSubRglr$Pa_MDS$staPresMean, "Pa_MDS_002" = dataDfFlux$presAtmTurb)
@@ -439,9 +501,9 @@ dataGf$rH <- data.frame("rH" = dataMetSubRglr$rH$RHMean, "rH_002" = dataMetSubRg
 qfGf$rH <- data.frame("rH" = dataMetSubRglr$rH$RHFinalQF, "rH_002" = dataMetSubRglr$rH_002$RHFinalQF)
 
 #Grab Rg data streams
-dataGf$Rg <- data.frame("Rg" = dataMetSubRglr$Rg$inSWMean, "Rg_002" = dataMetSubRglr$Rg_002$inLWMean)
+dataGf$Rg <- data.frame("Rg" = dataMetSubRglr$Rg$inSWMean, "Rg_002" = dataMetSubRglr$SW_DIR$gloRadMean, "Rg_003" = dataMetSubRglr$PAR$PARMean)
 #Grab Rg qfqm streams
-qfGf$Rg <- data.frame("Rg" = dataMetSubRglr$Rg$inSWFinalQF, "Rg_002" = dataMetSubRglr$Rg_002$outLWFinalQF)
+qfGf$Rg <- data.frame("Rg" = dataMetSubRglr$Rg$inSWFinalQF, "Rg_002" = dataMetSubRglr$SW_DIR$gloRadFinalQF, "Rg_003" = dataMetSubRglr$PAR$PARFinalQF)
 
 #Grab FLDS data streams
 dataGf$FLDS_MDS <- data.frame("FLDS_MDS" = dataMetSubRglr$FLDS_MDS$inLWMean, "FLDS_MDS_002" = dataMetSubRglr$FLDS_MDS_002$inLWMean)
@@ -450,41 +512,62 @@ qfGf$FLDS_MDS <- data.frame("FLDS_MDS" = dataMetSubRglr$FLDS_MDS$inLWFinalQF, "F
 
 #Grab radNet data streams
 dataGf$radNet <- data.frame("radNet" = dataMetSubRglr$Rg[["inSWMean"]] - dataMetSubRglr$Rg[["outSWMean"]] + dataMetSubRglr$Rg[["inLWMean"]] - dataMetSubRglr$Rg[["outLWMean"]]
-, "radNet_002" = dataMetSubRglr$Rg_002[["outLWMean"]]
-)
+, "radNet_002" = dataMetSubRglr$SW_DIR$gloRadMean)
+
 #Grab FLDS qfqm streams
-qfGf$radNet <- data.frame("radNet" = dataMetSubRglr$Rg$inSWFinalQF, "radNet_002" = dataMetSubRglr$Rg_002$outLWFinalQF)
-#Add a Month column
-#dataTempGf$mnthLab <- strftime(dataDfFlux$TIMESTAMP, format = "%Y%m")
+qfGf$radNet <- data.frame("radNet" = dataMetSubRglr$Rg$inSWFinalQF, "radNet_002" = dataMetSubRglr$SW_DIR$gloRadFinalQF)
 
-#Number of variables with missing data
-#varMiss <- n_var_miss(dataTempGf)
+#Grab wind speed data streams
+  dataGf$WS_MDS <- data.frame("WS_MDS"  = dataDfFlux$WS_MDS, "WS_MDS_002"  = dataMetSubRglr$WS_MDS$windSpeedMean, "WS_MDS_003" = dataMetSubRglr$WS_MDS_002$windSpeedMean)
+#Grab temp qfqm streams
+qfGf$WS_MDS <- data.frame("WS_MDS" = dataDfFlux$qfWS_MDS,"WS_MDS_002" = dataMetSubRglr$WS_MDS$windSpeedFinalQF, "WS_MDS_003" = dataMetSubRglr$WS_MDS_002$windSpeedFinalQF)
 
-#Upset interactions plot of missing data
-#gg_miss_upset(dataTempGf, nsets = varMiss)
 
-#Plot of the amount of missing data per variable (as %)
-#gg_miss_var(dataDfMet, show_pct = TRUE)
+#Variables to apply quality flag removal to main variable
+nameQfVar <- names(dataGf)[!names(dataGf) %in% "PRECTmms_MDS"]
 
-#Heat map of missing data
-#gg_miss_fct(dataTempGf, fct = mnthLab)
+#Remove bad quality flags in main data stream
+lapply(nameQfVar, function(x){
+dataGf[[x]][which(qfGf[[x]][[1]] == 1),1] <<- NaN #Put NaN's directly in data, not doing for gap-filling streams due to some over flagging
+})
 
-#Remove data with raised final quality flag
-dataGf$Tair[which(qfGf$Tair == 1), "Tair"] <- NaN
-dataTempGf[which(qfTempGf$dataDfFlux.qfTempAirTop == 1), "tempAirTop"] <- NaN
 
 #Reported gap-filled outputs
 rpt <- list()
 #Run Replicate stream gap-filling function
-rpt$Tair <- def.gf.rep(dataGf = dataGf$Tair, NameVarGf = "Tair", NameVarRep = "Tair_002")
+rpt <- lapply(names(dataGf), function(x){
+  #x <- "Tair" #For testing
+ def.gf.rep(dataGf = dataGf[[x]], NameVarGf = names(dataGf[[x]])[1], NameVarRep = names(dataGf[[x]])[-1])
+}) #End lapply around gap-fill function
+
+#Add names to list of data.frames
+names(rpt) <- names(dataGf)
 
 
 ##############################################################################
-#Combine flux and met data
+##!Combine flux and met data
 ##############################################################################
+#Grab gap-filled predicitions
+dataDfMet <- as.data.frame(sapply(rpt, function(x){
+  x[["pred"]]
+})) 
+
+#Grab gap-filled flags
+qfGfMet <- as.data.frame(sapply(rpt, function(x){
+  x[["varFill"]]
+}))
+
+#Names
+names(qfGfMet) <- paste0(names(qfGfMet),"_fqc")
+
+#Flux variables to report
+varRptFlux <- c("NEE", "LE", "Ustar", "H", "TIMESTAMP") 
 
 #Bind data frames together
-dataDf <- cbind(dataDfFlux, dataDfMet)
+dataDf <- cbind(dataDfFlux[,varRptFlux], dataDfMet)
+
+#Calculate precip rate from bulk
+dataDf$PRECTmms_MDS <- dataDf$PRECTmms_MDS/1800 #1800 sec/0.5 hours
 
 #Change NA to -9999
 dataDf[is.na(dataDf)] <- -9999
@@ -523,7 +606,7 @@ conFile
 close(conFile)
 
 ##############################################################################
-#ReddyProc workflow
+##!ReddyProc workflow
 ##############################################################################
 
 
@@ -579,8 +662,49 @@ FilledEddyData.F <- EddyProc.C$sExportResults()
 #Grab just the filled data products & rename variables
 dataClm <- FilledEddyData.F[,grep(pattern = "_f$", x = names(FilledEddyData.F))]
 
+#Gap-filling flags from ReddyProc
+qfClm <- FilledEddyData.F[,grep(pattern = "_fqc$", x = names(FilledEddyData.F))]
+#Changing gap-filling qf variable names
+#names(qfClm) <- str_remove(names(qfClm), '_fqc')
+
+#Creating character vector of gap-filling methods used from ReddyProc
+qfClm[qfClm == 1] <- "ReddyProc_methA"
+qfClm[qfClm == 2] <- "ReddyProc_methB"
+qfClm[qfClm == 3] <- "ReddyProc_methC"
+qfClm[qfClm == 0] <- NA
+
+#Save qf names
+nameQfClm <- names(qfClm)
+
+#Consolidate gap-filling flags
+qfClm <- lapply(names(qfClm), function(x){
+  #x <- "NEE" #for testing
+ifelse(is.na(qfClm[[x]])& x %in% names(qfGfMet), qfGfMet[[x]], qfClm[[x]]) 
+})
+
+#reassigning qf names
+names(qfClm) <- nameQfClm
+
+#Change names to match CLM data output
+names(qfClm) <- str_remove(names(qfClm), '_MDS')
+names(qfClm) <- str_replace(names(qfClm), 'Tair','TBOT')
+names(qfClm) <- str_replace(names(qfClm),'WS','WIND')
+names(qfClm) <- str_replace(names(qfClm),'rH','RH')
+names(qfClm) <- str_replace(names(qfClm),'Pa','PSRF')
+names(qfClm) <- str_replace(names(qfClm),'Rg','FSDS')
+
+#numeric flags
+qfGfClm <- as.data.frame(qfClm) 
+qfGfClm[!is.na(qfGfClm)] <- 1
+qfGfClm[is.na(qfGfClm)] <- 0
+qfGfClm <- as.data.frame(sapply(qfGfClm, as.numeric))
+
+
+
 #Grab the POSIX timestamp
 dataClm$DateTime <- EddyDataWithPosix.F$DateTime - lubridate::minutes(30) # putting back to time at the beginning of the measurement period
+
+#Changing data variable names
 names(dataClm) <- str_remove(names(dataClm), '_f')
 names(dataClm) <- str_remove(names(dataClm), '_MDS')
 names(dataClm) <- str_replace(names(dataClm), 'Tair','TBOT')
@@ -599,14 +723,18 @@ dataClm$PSRF <- dataClm$PSRF * 1000.0
 attributes(obj = dataClm$PSRF)$units <- "Pa"
 
 #Create tower height measurement field
-dataClm$ZBOT <- rep(distTowSite,nrow(dataClm))
+dataClm$ZBOT <- rep(as.numeric(distTowSite),nrow(dataClm))
+attributes(obj = dataClm$ZBOT)$units <- "m"
 
 #Year month combination for data filtering
 dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m", tz='UTC')
 dataClm$yearMon[1:20]
 
+#Combine data with qap-filling quality flags
+dataClm <- cbind(dataClm, qfGfClm)
+
 ##############################################################################
-#Write CLM output
+##!Write CLM output
 ##############################################################################
 
 #Define missing value fill
@@ -629,8 +757,9 @@ setYearMon <- unique(strftime(dataClm$DateTime, "%Y-%m", tz='UTC'))
     print(paste(m,"Data date =",tempTime))
     names(Data.mon)
   
-#NetCDF output filename
-fileOutNcdf <- paste(DirOut,"/",m,".nc", sep = "")
+#NetCDF output filenames
+fileOutAtm <- paste(DirOutAtm,"/",m,".nc", sep = "")
+fileOutEval <- paste(DirOutEval,"/",m,".nc", sep = "")
   #sub(pattern = ".txt", replacement = ".nc", fileOut)
 
 DirOut
@@ -673,79 +802,164 @@ GPP <- ncdf4::ncvar_def("GPP", "umolm-2s-1", list(lon,lat,time), mv,
 Rnet  <- ncdf4::ncvar_def("Rnet", "W/m^2", list(lon,lat,time), mv,
                           longname="net radiation", prec="double")
 
+#gap-filling quality flag variables
+FLDS_fqc  <- ncdf4::ncvar_def("FLDS_fqc", "NA", list(lon,lat,time), mv,
+                          longname="incident longwave (FLDS) gap-filling flag", prec="integer")
+FSDS_fqc  <- ncdf4::ncvar_def("FSDS_fqc", "NA", list(lon,lat,time), mv,
+                          longname="incident shortwave (FSDS) gap-filling flag", prec="integer")
+PRECTmms_fqc <- ncdf4::ncvar_def("PRECTmms_fqc", "NA", list(lon,lat,time), mv,
+                             longname="precipitation (PRECTmms) gap-filling flag", prec="integer")
+PSRF_fqc  <- ncdf4::ncvar_def("PSRF_fqc", "NA", list(lon,lat,time), mv,
+                          longname="pressure at the lowest atmospheric level (PSRF) gap-filling flag", prec="integer")
+RH_fqc    <- ncdf4::ncvar_def("RH_fqc", "NA", list(lon,lat,time), mv,
+                          longname="relative humidity at lowest atm level (RH) gap-filling flag", prec="integer")
+TBOT_fqc  <- ncdf4::ncvar_def("TBOT_fqc", "NA", list(lon,lat,time), mv,
+                          longname="temperature at lowest atm level (TBOT) gap-filling flag", prec="integer")
+WIND_fqc  <- ncdf4::ncvar_def("WIND_fqc", "NA", list(lon,lat,time), mv,
+                          longname="wind at lowest atm level (WIND) gap-filling flag", prec="integer")
+NEE_fqc <- ncdf4::ncvar_def("NEE_fqc", "NA", list(lon,lat,time), mv,
+                        longname="net ecosystem exchange gap-filling flag", prec="integer")
+FSH_fqc  <- ncdf4::ncvar_def("FSH_fqc", "NA", list(lon,lat,time), mv,
+                         longname="sensible heat flux gap-filling flag", prec="integer")
+EFLX_LH_TOT_fqc  <- ncdf4::ncvar_def("EFLX_LH_TOT_fqc", "NA", list(lon,lat,time), mv,
+                                 longname="latent heat flux gap-filling flag", prec="integer")
+GPP_fqc <- ncdf4::ncvar_def("GPP_fqc", "NA", list(lon,lat,time), mv,
+                        longname="gross primary productivity gap-filling flag", prec="integer")
+Rnet_fqc  <- ncdf4::ncvar_def("Rnet_fqc", "NA", list(lon,lat,time), mv,
+                          longname="net radiation gap-filling flag", prec="integer")
+
 #Create the output file
-ncnew <- ncdf4::nc_create(fileOutNcdf, list(LATIXY,LONGXY,FLDS,FSDS,PRECTmms,RH,PSRF,TBOT,WIND,ZBOT,NEE,FSH,EFLX_LH_TOT,GPP,Rnet))
+ncAtm <- ncdf4::nc_create(fileOutAtm, list(LATIXY,LONGXY,FLDS,FSDS,PRECTmms,RH,PSRF,TBOT,WIND,ZBOT,FLDS_fqc,FSDS_fqc,PRECTmms_fqc,RH_fqc,PSRF_fqc,TBOT_fqc,WIND_fqc))
+
+ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FSH,EFLX_LH_TOT,GPP,Rnet,ZBOT,NEE_fqc,FSH_fqc,EFLX_LH_TOT_fqc,GPP_fqc,Rnet_fqc))
 
 
 # Write some values to this variable on disk.
- ncdf4::ncvar_put(ncnew, LATIXY, latSite)
- ncdf4::ncvar_put(ncnew, LONGXY, lonSite)
- ncdf4::ncvar_put(ncnew, FLDS, Data.mon$FLDS)
- ncdf4::ncvar_put(ncnew, FSDS, Data.mon$FSDS)
- ncdf4::ncvar_put(ncnew, RH,   Data.mon$RH)
- ncdf4::ncvar_put(ncnew, PRECTmms, Data.mon$PRECTmms)
- ncdf4::ncvar_put(ncnew, PSRF, Data.mon$PSRF)
- ncdf4::ncvar_put(ncnew, TBOT, Data.mon$TBOT)
- ncdf4::ncvar_put(ncnew, WIND, Data.mon$WIND)
- ncdf4::ncvar_put(ncnew, ZBOT, Data.mon$ZBOT)
- ncdf4::ncvar_put(ncnew, NEE, Data.mon$NEE)
- ncdf4::ncvar_put(ncnew, FSH, Data.mon$H)
- ncdf4::ncvar_put(ncnew, EFLX_LH_TOT, Data.mon$LE)
- #ncdf4::ncvar_put(ncnew, GPP, Data.mon$GPP)
- ncdf4::ncvar_put(ncnew, Rnet, Data.mon$radNet)
-#add attributes
-#ncdf4::ncatt_put(ncnew, time,"calendar", "gregorian" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, FLDS,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, FSDS,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, RH  ,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, PRECTmms,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, PSRF,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, TBOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, WIND,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, ZBOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, NEE,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, FSH,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, EFLX_LH_TOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, GPP,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, Rnet,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_on",date()      ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_by",user,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "NEON site",Site         ,prec=NA,verbose=FALSE,definemode=FALSE )
-ncdf4::ncatt_put(ncnew, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncvar_put(ncAtm, LATIXY, latSite)
+ ncdf4::ncvar_put(ncAtm, LONGXY, lonSite)
+ ncdf4::ncvar_put(ncAtm, FLDS, Data.mon$FLDS)
+ ncdf4::ncvar_put(ncAtm, FSDS, Data.mon$FSDS)
+ ncdf4::ncvar_put(ncAtm, RH,   Data.mon$RH)
+ ncdf4::ncvar_put(ncAtm, PRECTmms, Data.mon$PRECTmms)
+ ncdf4::ncvar_put(ncAtm, PSRF, Data.mon$PSRF)
+ ncdf4::ncvar_put(ncAtm, TBOT, Data.mon$TBOT)
+ ncdf4::ncvar_put(ncAtm, WIND, Data.mon$WIND)
+ ncdf4::ncvar_put(ncAtm, ZBOT, Data.mon$ZBOT)
+ ncdf4::ncvar_put(ncAtm, FLDS_fqc, Data.mon$FLDS)
+ ncdf4::ncvar_put(ncAtm, FSDS_fqc, Data.mon$FSDS)
+ ncdf4::ncvar_put(ncAtm, RH_fqc,   Data.mon$RH)
+ ncdf4::ncvar_put(ncAtm, PRECTmms_fqc, Data.mon$PRECTmms)
+ ncdf4::ncvar_put(ncAtm, PSRF_fqc, Data.mon$PSRF)
+ ncdf4::ncvar_put(ncAtm, TBOT_fqc, Data.mon$TBOT)
+ ncdf4::ncvar_put(ncAtm, WIND_fqc, Data.mon$WIND)
+ 
+ #add attributes
+ #ncdf4::ncatt_put(ncAtm, time,"calendar", "gregorian" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, FLDS,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, FSDS,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, RH  ,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, PRECTmms,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, PSRF,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, TBOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, WIND,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, ZBOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, FLDS_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, FSDS_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, RH_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, PRECTmms_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, PSRF_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, TBOT_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, WIND_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, 0, "created_on",date()      ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, 0, "created_by",user,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, 0, "NEON site",Site         ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALSE,definemode=FALSE )
+ 
+ 
+ # Write some values to this variable on disk.
+ ncdf4::ncvar_put(ncEval, LATIXY, latSite)
+ ncdf4::ncvar_put(ncEval, LONGXY, lonSite) 
+ ncdf4::ncvar_put(ncEval, NEE, Data.mon$NEE)
+ ncdf4::ncvar_put(ncEval, FSH, Data.mon$H)
+ ncdf4::ncvar_put(ncEval, EFLX_LH_TOT, Data.mon$LE)
+ #ncdf4::ncvar_put(ncEval, GPP, Data.mon$GPP)
+ ncdf4::ncvar_put(ncEval, Rnet, Data.mon$radNet)
+ ncdf4::ncvar_put(ncEval, ZBOT, Data.mon$ZBOT)
+ ncdf4::ncvar_put(ncEval, NEE_fqc, Data.mon$NEE)
+ ncdf4::ncvar_put(ncEval, FSH_fqc, Data.mon$H)
+ ncdf4::ncvar_put(ncEval, EFLX_LH_TOT_fqc, Data.mon$LE)
+ #ncdf4::ncvar_put(ncEval, GPP, Data.mon$GPP)
+ ncdf4::ncvar_put(ncEval, Rnet_fqc, Data.mon$radNet)
+
+
+ncdf4::ncatt_put(ncEval, NEE,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, FSH,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, EFLX_LH_TOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, GPP,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, Rnet,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, ZBOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, NEE_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, FSH_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, EFLX_LH_TOT_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, GPP_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, Rnet_fqc,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, 0, "created_on",date()      ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, 0, "created_by",user,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, 0, "NEON site",Site         ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALSE,definemode=FALSE )
 
 #Close Netcdf file connection
-ncdf4::nc_close(ncnew)
+ncdf4::nc_close(ncAtm)
+ncdf4::nc_close(ncEval)
 
-remove(time, timeStep, fileOutNcdf, ncnew, Data.mon,
-       FLDS,FSDS,RH,PRECTmms,PSRF,TBOT,WIND,ZBOT)
+remove(time, timeStep, fileOutAtm, fileOutEval, ncAtm, ncEval, Data.mon,
+       FLDS,FSDS,RH,PRECTmms,PSRF,TBOT,WIND,ZBOT, NEE, FSH,EFLX_LH_TOT, GPP, Rnet,
+       FLDS_fqc,FSDS_fqc,RH_fqc,PRECTmms_fqc,PSRF_fqc,TBOT_fqc,WIND_fqc, NEE_fqc, FSH_fqc,EFLX_LH_TOT_fqc, GPP_fqc, Rnet_fqc)
   } #End of monthloop
 
 #} #End of year loop
 ###############################################################################
-#Output to S3
+##!Output to S3
 ###############################################################################
 #Should data be written out to S3
 if(MethOut == "s3"){
   #Grab all output files names
-  fileOut <- base::list.files(path = DirOut, pattern = ".nc")  
+  fileOutAtm <- base::list.files(path = DirOutAtm, pattern = ".nc")
+  fileOutEval <- base::list.files(path = DirOutEval, pattern = ".nc")
   
-  #Upload to S3
-  lapply(fileOut, function(x){
+  S3PathUpldAtm <- paste0(S3PathUpldAtm,"/",Site)
+  S3PathUpldEval <- paste0(S3PathUpldEval,"/",Site)
+  
+  #Upload Atm files to S3
+  lapply(fileOutAtm, function(x){
     print(x)
     #Function to upload to ECS
     accs::upload.to.ecs(
-      s3Path = S3PathUpld,
-      localPath = outputs,
+      s3Path = S3PathUpldAtm,
+      localPath = DirOutAtm,
       s3filename = x,
       filename = x
     ) 
   })#End lapply for writing data out to S3
   
+    #Upload Eval files to S3
+    lapply(fileOutEval, function(x){
+      print(x)
+      #Function to upload to ECS
+      accs::upload.to.ecs(
+        s3Path = S3PathUpldEval,
+        localPath = DirOutEval,
+        s3filename = x,
+        filename = x
+      ) 
+  })#End lapply for writing data out to S3
+  
 } #End if statement to write to S3
 
 ##############################################################################
-# plot input data
+##!Plot input data
 # this could be done better, but will work for now
 ##############################################################################
 if(methPlot == TRUE){
@@ -764,41 +978,77 @@ ggsave(paste0(DirOut,"/",Site,"_forcing.pdf"))
 # example from https://www.kaggle.com/jenslaufer/missing-value-visualization-with-ggplot2-and-dplyr
 # see also https://stackoverflow.com/questions/57962514/geom-raster-to-visualize-missing-values-with-additional-colorcode
 
-
-missing.values <- dataClm %>%
-  gather(key = "key", value = "val") %>%
-  mutate(is.missing = is.na(val)) %>%
-  group_by(key, is.missing) %>%
-  summarise(num.missing = n()) %>%
-  filter(is.missing==T) %>%
-  select(-is.missing) %>%
-  arrange(desc(num.missing)) 
-
-missing.values  %>% kable()
-missing.values %>%
-  ggplot() +
-  geom_bar(aes(x=key, y=num.missing), stat = 'identity') +
-  labs(x='variable', y="number of missing values", 
-       title=paste0('Number of missing values ',Site) ) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
+#Heat map of missing data
+missing.values <- naniar::gg_miss_fct(dataClm, fct = yearMon)
+#Save heatmap
 ggsave(paste0(DirOut,"/",Site,"_missing.pdf"))
 
-row.plot <- dataClm %>%
-  mutate(id = row_number()) %>%
-  gather(-id, key = "key", value = "val") %>%
-  mutate(isna = is.na(val)) %>%
-  ggplot(aes(key, id, fill = isna)) +
-  geom_raster(alpha=0.8) +
-  scale_fill_manual(name = "",
-                    values = c('steelblue', 'tomato3'),
-                    labels = c("Present", "Missing")) +
-  scale_x_discrete(limits = levels) +
-  labs(x = "Variable",
-       y = "Row Number", title = "Missing values in rows") +
-  coord_flip()
+#Plot gap-filling regressions
+p <- lapply(names(dataGf), function(x){
+#x <- "WS_MDS" #for testing
+#Melt data fram to long format
+xLong <- melt(dataGf[[x]], id.vars = x)
+#Plot regressions
+ggplot(xLong, aes_string(x, "value")) +
+  geom_point() +
+  geom_smooth(method="lm") +
+  facet_wrap(~ variable)
+}) #End lapply for plotting regressions
 
-row.plot
+#output plotted regressions to pdf
+pdf(paste0(DirOut,"/",Site,"_gf_regressions.pdf"))
+invisible(lapply(p, print))
+dev.off()#close plotting device
 
-DirOut
-}
+
+#Merge data sets to see the distribution of gap-filling methods
+tmp <- melt(subset(dataClm, select=c(DateTime,TBOT, RH,WIND,PRECTmms, PSRF,FLDS,FSDS)), id.var="DateTime")
+tmpQf <- as.data.frame(qfClm)
+tmpQf$DateTime <- dataClm$DateTime
+names(tmpQf) <- str_remove(names(tmpQf), '_fqc')
+tmpQfLong <- melt(subset(tmpQf, select=c(DateTime,TBOT, RH,WIND,PRECTmms, PSRF,FLDS,FSDS)), id.var="DateTime")
+
+dfLong <- merge(tmp,tmpQfLong, by = c("DateTime", "variable"))
+
+#output plotted filled variables
+pdf(paste0(DirOut,"/",Site,"_gf_variables.pdf"))
+
+for(idxName in unique(as.character(dfLong$variable))){
+#print(idxName)
+ 
+
+  #Save plots
+  p1 <- dfLong %>% 
+    filter(variable == idxName) %>% 
+    ggplot(aes(x = DateTime, y = value.x)) + 
+    geom_point(aes(color = value.y)) +
+    ggtitle(paste0(Site," ",idxName))
+  
+  p2 <- dfLong %>% 
+    filter(variable == idxName) %>%
+    ggplot(aes(x=factor(value.y))) +
+    geom_bar(aes(y = (..count..)/sum(..count..))) + 
+    scale_y_continuous(labels=scales::percent) +
+    ylab("relative frequencies") +
+    xlab("Gap-filling method") +
+    ggtitle(paste0(Site," ",idxName))
+  
+  #Plot output
+  print(p1)
+  print(p2)
+} #End of loop around variables
+
+dev.off()#close plotting device
+
+  
+#ggsave(p, paste0(DirOut,"/",Site,"_gf_regressions.pdf"))
+#Number of variables with missing data
+#varMiss <- n_var_miss(dataClm)
+
+#Upset interactions plot of missing data
+#gg_miss_upset(dataClm, nsets = varMiss)
+
+#Plot of the amount of missing data per variable (as %)
+#gg_miss_var(dataClm, show_pct = TRUE)
+
+}#End of plotting logical
