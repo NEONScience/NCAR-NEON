@@ -6,8 +6,8 @@ rclone
 
 ### Configuration
 Configure rclone remotes for source and target  
-Configure S3-netcdf-python ~/.s3nc.json for target  
-Configure keys for target, can pull from above config  
+Configure S3-netcdf-python for target  
+export S3_NC_CONFIG=``<configfile``>
 
 ### Args
 ```
@@ -15,7 +15,6 @@ Configure keys for target, can pull from above config
 --sourceBucket         source bucket containing staged data  
 --targetRemote         rclone remote for target  
 --targetRemoteDelete   rclone remote with delete for target  
---targetUrl            url of target host
 --targetBucket         target bucket
 --stagingPrefix        prefix for staged data  
 --distPrefix           prefix for distributed data  
