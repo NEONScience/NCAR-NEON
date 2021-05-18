@@ -485,9 +485,9 @@ dataGf$PRECTmms_MDS <- as.data.frame(sapply(tmpList, function(x){
 
 
 #Grab temp data streams
-dataGf$Tair <- data.frame("Tair"  = dataDfFlux$tempAirSoni, "Tair_002"  = dataDfFlux$tempAirTop, "Tair_003" = dataMetSubRglr$rH$tempRHMean)
+dataGf$Tair <- data.frame("Tair"  = dataMetSubRglr$TBOT$tempTripleMean, "Tair_002"  = dataDfFlux$tempAirSoni, "Tair_003" = dataMetSubRglr$rH$tempRHMean)
 #Grab temp qfqm streams
-qfGf$Tair <- data.frame("Tair" = dataDfFlux$qfTempAirSoni,"Tair_002" = dataDfFlux$qfTempAirTop, "Tair_003" = dataMetSubRglr$rH$tempRHFinalQF)
+qfGf$Tair <- data.frame("Tair" = dataMetSubRglr$TBOT$finalQF,"Tair_002" = dataDfFlux$qfTempAirSoni, "Tair_003" = dataMetSubRglr$rH$tempRHFinalQF)
 
 #Grab Pa data streams
 dataGf$Pa_MDS <- data.frame("Pa_MDS" = dataMetSubRglr$Pa_MDS$staPresMean, "Pa_MDS_002" = dataDfFlux$presAtmTurb)
@@ -528,8 +528,13 @@ nameQfVar <- names(dataGf)[!names(dataGf) %in% "PRECTmms_MDS"]
 
 #Remove bad quality flags in main data stream
 lapply(nameQfVar, function(x){
-dataGf[[x]][which(qfGf[[x]][[1]] == 1),1] <<- NaN #Put NaN's directly in data, not doing for gap-filling streams due to some over flagging
-})
+  #x <- nameQfVar[1]#for testing
+  lapply(names(dataGf[[x]]), function(y){
+    #y <- "Tair_002" #for testing
+dataGf[[x]][which(qfGf[[x]][[y]] == 1),y] <<- NaN #Put NaN's directly in data, not doing for gap-filling streams due to some over flagging
+
+  })#End of lapply around subVars
+})#End of lapply around Vars
 
 
 #Reported gap-filled outputs
@@ -769,7 +774,7 @@ lat  <- ncdf4::ncdim_def("lat","degrees_north", as.double(latSite), create_dimva
 lon <- ncdf4::ncdim_def("lon","degrees_east", as.double(lonSite), create_dimvar=TRUE)
 
 #Variables to output to netCDF
-time <- ncdf4::ncdim_def("time", paste("days since",tempTime),
+time <- ncdf4::ncdim_def("time", paste("days since",tempTime), calendar = "gregorian",
                        vals=as.double(time),unlim=FALSE, create_dimvar=TRUE )
 LATIXY  <- ncdf4::ncvar_def("LATIXY", "degrees N", list(lat), mv,
                         longname="latitude", prec="double")
@@ -875,6 +880,7 @@ ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FSH,EFLX_LH_TOT,G
  ncdf4::ncatt_put(ncAtm, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
  ncdf4::ncatt_put(ncAtm, 0, "NEON site",Site         ,prec=NA,verbose=FALSE,definemode=FALSE )
  ncdf4::ncatt_put(ncAtm, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, 0, "supported_by", "This data development was funded by the National Science Foundation (NSF) solicitation PD 20-7684",prec=NA,verbose=FALSE,definemode=FALSE )
  
  
  # Write some values to this variable on disk.
@@ -909,6 +915,7 @@ ncdf4::ncatt_put(ncEval, 0, "created_by",user,prec=NA,verbose=FALSE,definemode=F
 ncdf4::ncatt_put(ncEval, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, 0, "NEON site",Site         ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, 0, "supported_by", "This data development was funded by the National Science Foundation (NSF) solicitation PD 20-7684",prec=NA,verbose=FALSE,definemode=FALSE )
 
 #Close Netcdf file connection
 ncdf4::nc_close(ncAtm)
@@ -1050,5 +1057,24 @@ dev.off()#close plotting device
 
 #Plot of the amount of missing data per variable (as %)
 #gg_miss_var(dataClm, show_pct = TRUE)
+
+#Output diagnostic plots to S3
+if(MethOut == "s3"){
+  #Grab all output files names
+  fileOutDiag<- base::list.files(path = DirOut, pattern = ".pdf")
+  
+  #Upload Atm files to S3
+  lapply(fileOutDiag, function(x){
+    print(x)
+    #Function to upload to ECS
+    accs::upload.to.ecs(
+      s3Path = S3PathUpldAtm,
+      localPath = DirOut,
+      s3filename = x,
+      filename = x
+    ) 
+  })#End lapply for writing data out to S3
+  
+} #End if statement to write diagnostic plots to S3
 
 }#End of plotting logical
