@@ -63,7 +63,7 @@ if(MethOut == "s3"){
 ##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "BART"
+Site <- "NIWO"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -72,7 +72,7 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2021-03-31"
+dateEnd <- "2021-04-30"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
@@ -366,7 +366,7 @@ base::file.remove(base::list.files(DirDnld, full.names = TRUE, recursive = TRUE)
 listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001", "TBOT" = "DP1.00003.001", "PAR" = "DP1.00024.001", "SW_DIR" = "DP1.00014.001", "WS_MDS" = "DP1.00001.001")
 
 #names for individual variables of interest
-varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min", "PAR" = "PARPAR_30min", "SW_DIR" = "SRDDP_30min", "WS_MDS" = "2DWSD_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
+varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min", "PAR" = "PARPAR_30min", "SW_DIR" = "SRDDP_30min", "WS_MDS" = "twoDWSD_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
 
 #Sub data product variables
 subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inLWMean", "Rg" = "inSWMean", "Pa_MDS" = "staPresMean", "TBOT" = "tempTripleMean", "PAR" = "PARMean", "SW_DIR" = "gloRadMean", "WS_MDS" = "windSpeedMean")
@@ -398,6 +398,7 @@ subVarQf["PRECTmms_MDS"] <- ifelse(test = varDp["PRECTmms_MDS"] == "SECPRE_30min
 
 #Grab the actual data tables
 dataMetSub <- lapply(seq_along(varDp), function(x) {
+  #print(x)
   tmp <- dataMet[[names(varDp[x])]][[grep(pattern = varDp[[x]], x = names(dataMet[[names(varDp[x])]]))]]
   return(tmp)
 })
@@ -1004,7 +1005,7 @@ ggplot(xLong, aes_string(x, "value")) +
 
 #output plotted regressions to pdf
 pdf(paste0(DirOut,"/",Site,"_gf_regressions.pdf"))
-invisible(lapply(p, print))
+invisible(lapply(p, function(x){try(print(x))}))
 dev.off()#close plotting device
 
 
@@ -1015,24 +1016,27 @@ tmpQf$DateTime <- dataClm$DateTime
 names(tmpQf) <- str_remove(names(tmpQf), '_fqc')
 tmpQfLong <- melt(subset(tmpQf, select=c(DateTime,TBOT, RH,WIND,PRECTmms, PSRF,FLDS,FSDS)), id.var="DateTime")
 
-dfLong <- merge(tmp,tmpQfLong, by = c("DateTime", "variable"))
+dfLong <- merge(tmp,tmpQfLong, by = c("DateTime", "variable")) %>% 
+  dplyr::mutate(value.y = replace_na(value.y, "no gap-filling"))
+
+n = length(levels(as.factor(dfLong$value.y)))
+col = setNames(hcl(seq(15,375,length=n+1)[1:n], 100, 65), levels(as.factor(dfLong$value.y)))
 
 #output plotted filled variables
 pdf(paste0(DirOut,"/",Site,"_gf_variables.pdf"))
 
 for(idxName in unique(as.character(dfLong$variable))){
 #print(idxName)
- 
+  tmp <- dfLong %>% 
+    filter(variable == idxName) 
 
   #Save plots
-  p1 <- dfLong %>% 
-    filter(variable == idxName) %>% 
-    ggplot(aes(x = DateTime, y = value.x)) + 
+  p1 <- tmp %>% ggplot(aes(x = DateTime, y = value.x)) + 
     geom_point(aes(color = value.y)) +
+    scale_colour_manual(values=col, drop=drop) +
     ggtitle(paste0(Site," ",idxName))
   
-  p2 <- dfLong %>% 
-    filter(variable == idxName) %>%
+  p2 <- tmp %>%
     ggplot(aes(x=factor(value.y))) +
     geom_bar(aes(y = (..count..)/sum(..count..))) + 
     scale_y_continuous(labels=scales::percent) +
