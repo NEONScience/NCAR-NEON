@@ -28,10 +28,10 @@ def empty_figure():
 # -------------------------- LOAD DATA ---------------------------- #
 
 
-dataFile = os.path.join('data/clm50bgcNEON_HARV.clm2.h1.2018-01-01-00000.nc')
+dataFile = os.path.join('data/2021-01.nc')
 ds = nc.Dataset(dataFile)
 xarr = ds.variables['time'][:]
-refVar = 'RAIN'
+refVar = 'RH'
 
 varList = []
 varLongNameByName = {}
@@ -107,7 +107,7 @@ def update_output(value, existing_state):
     if value is None:
         return existing_state, ""
 
-    yarr = ds.variables[value][:,0]
+    yarr = ds.variables[value][:,0,0]
 
     figure={
         'data': [
