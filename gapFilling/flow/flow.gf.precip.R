@@ -87,7 +87,7 @@ listSites <- list("priPrecip" = intersect(unique(dataPrecip$PRIPRE_30min$siteID)
 metaSite <- metScanR::getStation(paste0("NEON:",Site))
 
 #Find nearby sites (100 km radius) with precip data
-siteNear <- metScanR::siteFinder(siteID = paste0("NEON:",Site), radius = 100, vars = "precipitation")
+siteNear <- metScanR::siteFinder(siteID = paste0("NEON:",Site), radius = 10, vars = "precipitation")
 
 
 metScanR::mapResults(siteNear)
@@ -155,13 +155,13 @@ points(test$startDateTime, test$precip, col = "cyan")
 ##########################################################################################
 #Time for gathering data for gap-filling
 timeBgn <- "201801010000"
-timeEnd <- "201802010000"
+timeEnd <- "202104300000"
 
 #Radius for searching for sites
 rad <- 10
 
 #Location information for the site for building mesonet query
-locInfo <- paste0("radius=",metaSite$SRER$location$latitude_dec, ",", metaSite$SRER$location$longitude_dec, ",", rad)
+locInfo <- paste0("radius=",metaSite$NIWO$location$latitude_dec, ",", metaSite$NIWO$location$longitude_dec, ",", rad)
 
 timeInfo <- paste0("&start=",timeBgn,"&end=",timeEnd,"&pmode=intervals&interval=1&")
 
@@ -180,6 +180,13 @@ jsonMeso <- jsonlite::fromJSON(urlMeso)
 
 dataMeso <- jsonMeso$STATION$OBSERVATIONS$precipitation[[1]]
 
+#Calculate precip rate from bulk
+dataMeso$ratePrecip <- dataMeso$total/3600 #1800 sec/0.5 hours
 
+
+dataGf$PRECTmms_MDS$PRECTmms_MDS_002
 plot(lubridate::fast_strptime(dataMeso$first_report, "%Y-%m-%dT%H:%M:%SZ"), dataMeso$total)
 
+plot(as.POSIXct(jsonMeso$STATION$OBSERVATIONS$precipitation[[1]]$first_report),jsonMeso$STATION$OBSERVATIONS$precipitation[[1]]$total)
+
+head(jsonMeso$STATION$OBSERVATIONS$precipitation[[5]]$report_type)
