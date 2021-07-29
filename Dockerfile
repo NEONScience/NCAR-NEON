@@ -57,6 +57,7 @@ ENV MAKEFLAGS='-j3'
     tidyverse \
     naniar \
     Rfast \
+    aws.s3 \
     
      ## from bioconductor
     && R -e "BiocManager::install('rhdf5', update=FALSE, ask=FALSE)" \
