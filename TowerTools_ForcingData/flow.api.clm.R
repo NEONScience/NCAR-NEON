@@ -24,19 +24,18 @@
 
 #Call the R HDF5 Library
 packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools",'reshape2',
-             'ggplot2','tidyverse','gridExtra','knitr','naniar', "Rfast")
+             'ggplot2','tidyverse','gridExtra','knitr','naniar', "Rfast", "aws.s3", "neonUtilities")
 
 #Install and load all required packages
 lapply(packReq, function(x) {
   print(x)
   if(require(x, character.only = TRUE) == FALSE) {
-    install.packages(x)
+    install.packages(x, dependencies=TRUE, repos='http://cran.rstudio.com/')
     library(x, character.only = TRUE)
   }})
 
 #Install packages from github repos
-devtools::install_github(c("NEONScience/eddy4R/pack/eddy4R.base", 
-                           "NEONScience/NEON-utilities/neonUtilities"))
+devtools::install_github("NEONScience/eddy4R/pack/eddy4R.base")
 
 #Setup Environment
 options(stringsAsFactors=F)
@@ -63,7 +62,7 @@ if(MethOut == "s3"){
 ##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "NIWO"
+Site <- "JERC"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -72,7 +71,7 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2021-04-30"
+dateEnd <- "2021-06-30"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
@@ -383,7 +382,7 @@ dataMet <- lapply(listDpNum, function(x){
   try(expr = neonUtilities::loadByProduct(site = Site, dpID = x, 
                                           startdate = as.character(dateBgn), 
                                           enddate = as.character(dateEnd), 
-                                          package = Pack, avg = TimeAgr, check.size = FALSE), 
+                                          package = Pack, timeIndex = TimeAgr, check.size = FALSE), 
       silent = TRUE)
   })
 
@@ -734,7 +733,7 @@ attributes(obj = dataClm$ZBOT)$units <- "m"
 
 #Year month combination for data filtering
 dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m", tz='UTC')
-dataClm$yearMon[1:20]
+
 
 #Combine data with qap-filling quality flags
 dataClm <- cbind(dataClm, qfGfClm)
@@ -764,8 +763,8 @@ setYearMon <- unique(strftime(dataClm$DateTime, "%Y-%m", tz='UTC'))
     names(Data.mon)
   
 #NetCDF output filenames
-fileOutAtm <- paste(DirOutAtm,"/",m,".nc", sep = "")
-fileOutEval <- paste(DirOutEval,"/",m,".nc", sep = "")
+fileOutAtm <- paste(DirOutAtm,"/",Site,"_atm_",m,".nc", sep = "")
+fileOutEval <- paste(DirOutEval,"/",Site,"_eval_",m,".nc", sep = "")
   #sub(pattern = ".txt", replacement = ".nc", fileOut)
 
 DirOut
@@ -851,13 +850,13 @@ ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FSH,EFLX_LH_TOT,G
  ncdf4::ncvar_put(ncAtm, TBOT, Data.mon$TBOT)
  ncdf4::ncvar_put(ncAtm, WIND, Data.mon$WIND)
  ncdf4::ncvar_put(ncAtm, ZBOT, Data.mon$ZBOT)
- ncdf4::ncvar_put(ncAtm, FLDS_fqc, Data.mon$FLDS)
- ncdf4::ncvar_put(ncAtm, FSDS_fqc, Data.mon$FSDS)
- ncdf4::ncvar_put(ncAtm, RH_fqc,   Data.mon$RH)
- ncdf4::ncvar_put(ncAtm, PRECTmms_fqc, Data.mon$PRECTmms)
- ncdf4::ncvar_put(ncAtm, PSRF_fqc, Data.mon$PSRF)
- ncdf4::ncvar_put(ncAtm, TBOT_fqc, Data.mon$TBOT)
- ncdf4::ncvar_put(ncAtm, WIND_fqc, Data.mon$WIND)
+ ncdf4::ncvar_put(ncAtm, FLDS_fqc, Data.mon$FLDS_fqc)
+ ncdf4::ncvar_put(ncAtm, FSDS_fqc, Data.mon$FSDS_fqc)
+ ncdf4::ncvar_put(ncAtm, RH_fqc,   Data.mon$RH_fqc)
+ ncdf4::ncvar_put(ncAtm, PRECTmms_fqc, Data.mon$PRECTmms_fqc)
+ ncdf4::ncvar_put(ncAtm, PSRF_fqc, Data.mon$PSRF_fqc)
+ ncdf4::ncvar_put(ncAtm, TBOT_fqc, Data.mon$TBOT_fqc)
+ ncdf4::ncvar_put(ncAtm, WIND_fqc, Data.mon$WIND_fqc)
  
  #add attributes
  #ncdf4::ncatt_put(ncAtm, time,"calendar", "gregorian" ,prec=NA,verbose=FALSE,definemode=FALSE )
@@ -893,11 +892,11 @@ ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FSH,EFLX_LH_TOT,G
  #ncdf4::ncvar_put(ncEval, GPP, Data.mon$GPP)
  ncdf4::ncvar_put(ncEval, Rnet, Data.mon$radNet)
  ncdf4::ncvar_put(ncEval, ZBOT, Data.mon$ZBOT)
- ncdf4::ncvar_put(ncEval, NEE_fqc, Data.mon$NEE)
- ncdf4::ncvar_put(ncEval, FSH_fqc, Data.mon$H)
- ncdf4::ncvar_put(ncEval, EFLX_LH_TOT_fqc, Data.mon$LE)
+ ncdf4::ncvar_put(ncEval, NEE_fqc, Data.mon$NEE_fqc)
+ ncdf4::ncvar_put(ncEval, FSH_fqc, Data.mon$H_fqc)
+ ncdf4::ncvar_put(ncEval, EFLX_LH_TOT_fqc, Data.mon$LE_fqc)
  #ncdf4::ncvar_put(ncEval, GPP, Data.mon$GPP)
- ncdf4::ncvar_put(ncEval, Rnet_fqc, Data.mon$radNet)
+ ncdf4::ncvar_put(ncEval, Rnet_fqc, Data.mon$radNet_fqc)
 
 
 ncdf4::ncatt_put(ncEval, NEE,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
