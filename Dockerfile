@@ -61,6 +61,7 @@ ENV MAKEFLAGS='-j3'
     
      ## from bioconductor
     && R -e "BiocManager::install('rhdf5', update=FALSE, ask=FALSE)" \
+    && R -e "devtools::install(pkg = 'gapFilling/pack/NEON.gf', dependencies=TRUE, upgrade = FALSE)" \
 
     # provide read and write access for default R library location to Rstudio users
     && chmod -R 777 /usr/local/lib/R/site-library \
