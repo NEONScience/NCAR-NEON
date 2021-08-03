@@ -15,10 +15,10 @@ def generateMetadata(targetRemote, targetBucket, stagingPrefix, metadataVocab, m
         s3endpoint = s3uri + '/' + targetBucket + '/' + s3object.key
         ncdf = bald.load_netcdf(s3endpoint)
         context = {'@vocab': metadataVocab}
-        metadata = ncdf.rdfgraph().serialize(format=metadataFormat, context=context, indent=4).decode('utf-8')
+        metadata = ncdf.rdfgraph().serialize(format=metadataFormat, context=context, indent=4)
         outputKey =  os.path.splitext(s3object.key)[0] + '.' + metadataExt
         outputObject = s3.Object(targetBucket, outputKey)
-        outputObject.put(Body=metadata)
+        outputObject.put(Body=metadata, ContentType='application/json')
 
 
 def getTargetS3(targetRemote):
