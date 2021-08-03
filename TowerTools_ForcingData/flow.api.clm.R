@@ -45,7 +45,12 @@ options(stringsAsFactors=F)
 ###############################################################################
 MethOut <- c("local", "s3")[2] # CHANGE ME FOR DESIRED CONFIGURATION
 
+
+
 if(MethOut == "s3"){
+  #S3 information
+  #Secret writing/deleting 
+  keyS3 <- readRDS("~/eddy/tmp/ncar_writer_key.RDS")
   #Set ENV variables
   base::Sys.setenv("S3PATHUPLDATM" = "NEON/atm/cdeps/v1")
   base::Sys.setenv("S3PATHUPLDEVAL" = "NEON/eval_files/v1")
@@ -57,6 +62,12 @@ if(MethOut == "s3"){
   #Grab needed ENV variable
   S3PathUpldAtm <- base::Sys.getenv("S3PATHUPLDATM")
   S3PathUpldEval <- base::Sys.getenv("S3PATHUPLDEVAL")
+  
+  # Setting up environment
+  Sys.setenv("AWS_ACCESS_KEY_ID" = "neon-ncar-writer",
+             "AWS_SECRET_ACCESS_KEY" = keyS3,
+             "AWS_S3_ENDPOINT" = "s3.data.neonscience.org",
+             "AWS_DEFAULT_REGION" = "s3")
 }
 ##############################################################################
 ##!Workflow parameters
@@ -941,26 +952,39 @@ if(MethOut == "s3"){
   
   #Upload Atm files to S3
   lapply(fileOutAtm, function(x){
+   # x <- fileOutAtm[1] #for testing
     print(x)
     #Function to upload to ECS
-    accs::upload.to.ecs(
-      s3Path = S3PathUpldAtm,
-      localPath = DirOutAtm,
-      s3filename = x,
-      filename = x
-    ) 
-  })#End lapply for writing data out to S3
+    aws.s3::put_object(file = paste0(DirOutAtm,"/",x),
+      object = paste0(S3PathUpldAtm,"/",x),
+      bucket = "neon-ncar",
+      region = "s3",
+      check_region = FALSE
+    )
+  })
+  
+  #Upload Atm files to S3
+  # lapply(fileOutAtm, function(x){
+  #   print(x)
+  #   #Function to upload to ECS
+  #   accs::upload.to.ecs(
+  #     s3Path = S3PathUpldAtm,
+  #     localPath = DirOutAtm,
+  #     s3filename = x,
+  #     filename = x
+  #   ) 
+  # })#End lapply for writing data out to S3
   
     #Upload Eval files to S3
     lapply(fileOutEval, function(x){
       print(x)
       #Function to upload to ECS
-      accs::upload.to.ecs(
-        s3Path = S3PathUpldEval,
-        localPath = DirOutEval,
-        s3filename = x,
-        filename = x
-      ) 
+      aws.s3::put_object(file = paste0(DirOutEval,"/",x),
+                         object = paste0(S3PathUpldEval,"/",x),
+                         bucket = "neon-ncar",
+                         region = "s3",
+                         check_region = FALSE
+      )#End aws put object
   })#End lapply for writing data out to S3
   
 } #End if statement to write to S3
@@ -979,7 +1003,7 @@ ggplot(mm, aes(x = DateTime, y = value)) +
   theme(legend.position = "none") +
   ggtitle(Site)
 
-ggsave(paste0(DirOut,"/",Site,"_forcing.pdf"))
+ggsave(paste0(DirOut,"/",Site,"_forcing.pdf"), width = 30, height = 30, units = "cm")
 
 # visualize missing data
 # example from https://www.kaggle.com/jenslaufer/missing-value-visualization-with-ggplot2-and-dplyr
@@ -988,7 +1012,7 @@ ggsave(paste0(DirOut,"/",Site,"_forcing.pdf"))
 #Heat map of missing data
 missing.values <- naniar::gg_miss_fct(dataClm, fct = yearMon)
 #Save heatmap
-ggsave(paste0(DirOut,"/",Site,"_missing.pdf"))
+ggsave(paste0(DirOut,"/",Site,"_missing.pdf"), width = 30, height = 30, units = "cm")
 
 #Plot gap-filling regressions
 p <- lapply(names(dataGf), function(x){
@@ -1070,12 +1094,12 @@ if(MethOut == "s3"){
   lapply(fileOutDiag, function(x){
     print(x)
     #Function to upload to ECS
-    accs::upload.to.ecs(
-      s3Path = S3PathUpldAtm,
-      localPath = DirOut,
-      s3filename = x,
-      filename = x
-    ) 
+    aws.s3::put_object(file = paste0(DirOut,"/",x),
+                       object = paste0(S3PathUpldAtm,"/",x),
+                       bucket = "neon-ncar",
+                       region = "s3",
+                       check_region = FALSE
+    ) #end s3 put funciton
   })#End lapply for writing data out to S3
   
 } #End if statement to write diagnostic plots to S3
