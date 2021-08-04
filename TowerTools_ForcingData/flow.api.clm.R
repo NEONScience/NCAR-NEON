@@ -50,7 +50,7 @@ MethOut <- c("local", "s3")[2] # CHANGE ME FOR DESIRED CONFIGURATION
 if(MethOut == "s3"){
   #S3 information
   #Secret writing/deleting 
-  keyS3 <- readRDS("~/eddy/tmp/ncar_writer_key.RDS")
+  #keyS3 <- readRDS("home/ddurden/eddy/tmp/ncar_writer_key.RDS")
   #Set ENV variables
   base::Sys.setenv("S3PATHUPLDATM" = "NEON/atm/cdeps/v1")
   base::Sys.setenv("S3PATHUPLDEVAL" = "NEON/eval_files/v1")
@@ -65,7 +65,7 @@ if(MethOut == "s3"){
   
   # Setting up environment
   Sys.setenv("AWS_ACCESS_KEY_ID" = "neon-ncar-writer",
-             "AWS_SECRET_ACCESS_KEY" = keyS3,
+             "AWS_SECRET_ACCESS_KEY" = "Xq6pzt19bhw9EHjdYgffB1oTypVhNU6/2mbp7Z6o",
              "AWS_S3_ENDPOINT" = "s3.data.neonscience.org",
              "AWS_DEFAULT_REGION" = "s3")
 }
@@ -118,6 +118,7 @@ DirExtr <- paste0(DirDnld,"/extr")
 #Create input directory for double zip files
 DirInp <- paste0(DirExtr,"/inp")
 #Append the site to the base output directory
+if(DirOutBase == "tmp") DirOutBase <- tempdir()
 DirOut <- paste0(DirOutBase, "/", Site)
 DirOutAtm <- paste0(DirOutBase, "/", Site, "/atm")
 DirOutEval <- paste0(DirOutBase, "/", Site, "/eval")
