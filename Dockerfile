@@ -46,7 +46,7 @@ ENV MAKEFLAGS='-j3'
     && apt-get install -y $BUILDDEPS $RUNDEPS \
 
     # Installing R package dependencies that are only workflow related (including CI combiner)
-    && install2.r --error \
+    && install2.r --error --repos "https://cran.rstudio.com/"\
     BiocManager \
     REddyProc \
     ncdf4 \
@@ -58,10 +58,13 @@ ENV MAKEFLAGS='-j3'
     naniar \
     Rfast \
     aws.s3 \
+    neonUtilities \
     
      ## from bioconductor
     && R -e "BiocManager::install('rhdf5', update=FALSE, ask=FALSE)" \
-    && R -e "devtools::install(pkg = 'gapFilling/pack/NEON.gf', dependencies=TRUE, upgrade = FALSE)" \
+    #Install packages from github repos
+   # && R -e "devtools::install_github('NEONScience/eddy4R/pack/eddy4R.base')" \
+    && R -e "devtools::install(pkg = 'gapFilling/pack/NEON.gf', dependencies=TRUE, upgrade = TRUE)" \
 
     # provide read and write access for default R library location to Rstudio users
     && chmod -R 777 /usr/local/lib/R/site-library \
