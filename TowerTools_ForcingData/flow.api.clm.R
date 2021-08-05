@@ -96,7 +96,7 @@ ver <- paste0("v",format(Sys.time(), "%Y%m%d"))
 #Base directory for output
 DirOutBase <-paste0("~/eddy/data/CLM",ver)
 #Download directory for HDF5 files from the API
-DirDnld= c("~/eddy/tmp/CLM",tempdir())[1]
+DirDnld= c("/home/ddurden/eddy/tmp/CLM",tempdir())[1]
 
 
 # check environment variables for eddy4R workflow, if it exists grab ENV variables 
@@ -114,7 +114,10 @@ if("METHPARAFLOW" %in% base::names(base::Sys.getenv())) {
 ##############################################################################
 
 #H5 extraction directory
-DirExtr <- paste0(DirDnld,"/extr")
+DirDnld <- paste0(DirDnld,"/", Site)
+
+#H5 extraction directory
+DirExtr <- paste0(DirDnld,"/extr/", Site)
 #Create input directory for double zip files
 DirInp <- paste0(DirExtr,"/inp")
 #Append the site to the base output directory
@@ -554,7 +557,7 @@ rpt <- list()
 #Run Replicate stream gap-filling function
 rpt <- lapply(names(dataGf), function(x){
   #x <- "Tair" #For testing
- def.gf.rep(dataGf = dataGf[[x]], NameVarGf = names(dataGf[[x]])[1], NameVarRep = names(dataGf[[x]])[-1])
+ NEON.gf::def.gf.rep(dataGf = dataGf[[x]], NameVarGf = names(dataGf[[x]])[1], NameVarRep = names(dataGf[[x]])[-1])
 }) #End lapply around gap-fill function
 
 #Add names to list of data.frames
