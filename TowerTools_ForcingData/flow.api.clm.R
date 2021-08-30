@@ -876,6 +876,7 @@ ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FSH,EFLX_LH_TOT,G
  ncdf4::ncatt_put(ncAtm, 0, "created_by",user,prec=NA,verbose=FALSE,definemode=FALSE )
  ncdf4::ncatt_put(ncAtm, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
  ncdf4::ncatt_put(ncAtm, 0, "NEON site",Site         ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, 0, "TimeDiffUtcLt",metaSite$TimeDiffUtcLt         ,prec=NA,verbose=FALSE,definemode=FALSE )
  ncdf4::ncatt_put(ncAtm, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALSE,definemode=FALSE )
  ncdf4::ncatt_put(ncAtm, 0, "supported_by", "This data development was funded by the National Science Foundation (NSF) solicitation PD 20-7684",prec=NA,verbose=FALSE,definemode=FALSE )
  
@@ -911,6 +912,7 @@ ncdf4::ncatt_put(ncEval, 0, "created_on",date()      ,prec=NA,verbose=FALSE,defi
 ncdf4::ncatt_put(ncEval, 0, "created_by",user,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, 0, "NEON site",Site         ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, 0, "TimeDiffUtcLt",metaSite$TimeDiffUtcLt         ,prec=NA,verbose=FALSE,definemode=FALSE)
 ncdf4::ncatt_put(ncEval, 0, "created_with", "flow.api.clm.R",prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, 0, "supported_by", "This data development was funded by the National Science Foundation (NSF) solicitation PD 20-7684",prec=NA,verbose=FALSE,definemode=FALSE )
 
