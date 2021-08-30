@@ -71,7 +71,7 @@ DirUsr <- c(
 if(!dir.exists(outputs)) dir.create(outputs, recursive = TRUE)
 
 # Add info about megapit land cover (from TIS) and dominant plants in the tower (pheno)
-cover <- read.csv("https://s3.data.neonscience.org/neon-ncar/NEON/surf_files/inpMeta/tower.site.metadata.csv", 
+cover <- read.csv("https://s3.data.neonscience.org/neon-ncar/NEON/surf_files/v1/inpMeta/tower.site.metadata.csv", 
                   header = T, stringsAsFactors = F)
 
 ##############################################################################
@@ -153,7 +153,8 @@ mgp_all.2 <- mgp_all.1 %>%
          horizonName, 
          biogeoTopDepth, 
          biogeoBottomDepth, 
-         carbonTot, 
+         carbonTot,
+         estimatedOC,
          nitrogenTot, 
          phH2o, 
          coarseFrag2To5, 
@@ -213,6 +214,7 @@ varList <-
     "biogeoTopDepth",
     "biogeoBottomDepth",
     "carbonTot",
+    "estimatedOC",
     "nitrogenTot",
     "phH2o",
     "coarseFrag2To5",
