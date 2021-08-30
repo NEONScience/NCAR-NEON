@@ -66,14 +66,14 @@ if(MethOut == "s3"){
   # Setting up environment
   Sys.setenv("AWS_ACCESS_KEY_ID" = "neon-ncar-writer",
              "AWS_SECRET_ACCESS_KEY" = "Xq6pzt19bhw9EHjdYgffB1oTypVhNU6/2mbp7Z6o",
-             "AWS_S3_ENDPOINT" = "s3.data.neonscience.org",
-             "AWS_DEFAULT_REGION" = "s3")
+             "AWS_S3_ENDPOINT" = "neonscience.org",
+             "AWS_DEFAULT_REGION" = "s3.data")
 }
 ##############################################################################
 ##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "JERC"
+Site <- "BONA"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -181,29 +181,11 @@ LvlTowr <- paste0(IdHor,IdVer)
 
 # time difference between local time and UTC
 if(!base::is.null(metaSite$ZoneTime)) {
-  
-  # start date and time of dataset in UTC
-  timeTmp01 <- base::as.POSIXlt(x = base::paste0(dateBgn, "T00:00:00Z"), 
-                                format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
-  timeTmp02 <- timeTmp01
-  
-  # assign local timezone attribute, if available in database
-  if(metaSite$ZoneTime %in% base::OlsonNames()) {
-    
-    attributes(timeTmp02)$tzone <- metaSite$ZoneTime
-    
-  } else {
-    
-    base::warning(base::paste("Time zone attribute", metaSite$ZoneTime,
-                              "not available in R base::OlsonNames() database. Continue with local time equals UTC time."))
-    
-  }}
+  mapZoneTime <- c("AST" = -4L, "AKST" = -9L, "CST" = -6L, "EST" = -5L, "HST" = -10L, "MST" = -7L, "PST" = -8L, "PST/MST" = -7L)
   
   # time difference between local time and UTC
-  metaSite$TimeDiffUtcLst <- base::as.numeric(base::difftime(timeTmp01, timeTmp02, units = "hours"))
-  
-  # clean up
-  rm(timeTmp01, timeTmp02)
+  metaSite$TimeDiffUtcLst <- ifelse(metaSite$ZoneTime %in% names(mapZoneTime), mapZoneTime[Para$Site$ZoneTime], "NA")
+}
 
 ##############################################################################
 ##!Flux data read in
@@ -961,9 +943,9 @@ if(MethOut == "s3"){
     #Function to upload to ECS
     aws.s3::put_object(file = paste0(DirOutAtm,"/",x),
       object = paste0(S3PathUpldAtm,"/",x),
-      bucket = "neon-ncar",
-      region = "s3",
-      check_region = FALSE
+      bucket = "neon-ncar"
+      # region = "s3",
+      # check_region = FALSE
     )
   })
   
@@ -985,9 +967,7 @@ if(MethOut == "s3"){
       #Function to upload to ECS
       aws.s3::put_object(file = paste0(DirOutEval,"/",x),
                          object = paste0(S3PathUpldEval,"/",x),
-                         bucket = "neon-ncar",
-                         region = "s3",
-                         check_region = FALSE
+                         bucket = "neon-ncar"
       )#End aws put object
   })#End lapply for writing data out to S3
   
@@ -1100,9 +1080,7 @@ if(MethOut == "s3"){
     #Function to upload to ECS
     aws.s3::put_object(file = paste0(DirOut,"/",x),
                        object = paste0(S3PathUpldAtm,"/",x),
-                       bucket = "neon-ncar",
-                       region = "s3",
-                       check_region = FALSE
+                       bucket = "neon-ncar"
     ) #end s3 put funciton
   })#End lapply for writing data out to S3
   
