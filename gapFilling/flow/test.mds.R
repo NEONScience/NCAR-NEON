@@ -43,7 +43,7 @@ EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year.s = 'Year', D
 EddyProc.C <- sEddyProc$new('MySite', EddyDataWithPosix.F, c('NEE','Rg','Tair','VPD', 'Ustar'))  
 
 #++ Fill NEE gaps with MDS gap filling algorithm (without prior ustar filtering)
-# This appears to be how you call the function REddyProd::sEddyProc_sMDSGapFill. See the documentation for input options
+# This appears to be how you call the function REddyProc::sEddyProc_sMDSGapFill. See the documentation for input options
 EddyProc.C$sMDSGapFill('NEE', FillAll.b = FALSE)
 
 #++ Export gap filled and partitioned data to standard data frame
