@@ -73,7 +73,7 @@ if(MethOut == "s3"){
 ##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "CLBJ"
+Site <- "PUUM"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -82,7 +82,7 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2021-08-31"
+dateEnd <- "2021-09-30"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
@@ -528,9 +528,12 @@ lapply(nameQfVar, function(x){
   #x <- nameQfVar[1]#for testing
   lapply(names(dataGf[[x]]), function(y){
     #y <- "Tair_002" #for testing
-    if(Site == "CLBJ" & y == "Pa_MDS_002"){
-      dataGf[[x]][which(dataGf[[x]][[y]] > 105|dataGf[[x]][[y]] < 80),y]  <<- NaN
-    } else{
+    if(Site %in% c("CLBJ","DELA") & y == "Pa_MDS_002"){
+      dataGf[[x]][which(dataGf[[x]][[y]] > 110|dataGf[[x]][[y]] < 80),y]  <<- NaN
+    } else if (Site %in% c("RMNP") & y == "Pa_MDS_002"){
+      dataGf[[x]][which(dataGf[[x]][[y]] > 90|dataGf[[x]][[y]] < 70),y]  <<- NaN
+    } 
+    else{
 dataGf[[x]][which(qfGf[[x]][[y]] == 1),y] <<- NaN #Put NaN's directly in data, not doing for gap-filling streams due to some over flagging
 }
   })#End of lapply around subVars
@@ -701,10 +704,24 @@ names(qfClm) <- str_replace(names(qfClm),'Rg','FSDS')
 
 #numeric flags
 qfGfClm <- as.data.frame(qfClm)
-nameGfMeth <- unique(unlist(qfGfClm))
-test <- factor(nameGfMeth)
+#nameGfMeth <- unique(unlist(qfGfClm))
+#test <- factor(nameGfMeth)
 #qfGfClm[!is.na(qfGfClm)] <- 1
 qfGfClm[is.na(qfGfClm)] <- 0
+qfGfClm[qfGfClm == "ReddyProc_methA"] <- 2
+qfGfClm[qfGfClm == "ReddyProc_methB"] <- 3
+qfGfClm[qfGfClm == "ReddyProc_methC"] <- 4
+
+#Turning all redundant data stream gap-fills to 4
+lapply(names(qfGfClm), function(x){
+  #Testing
+  #x <- "TBOT_fqc"
+  qfGfClm[[x]][which(nchar(qfGfClm[[x]])>2)] <<- 1
+})
+
+#Convert to numeric
+qfGfClm <- as.data.frame(sapply(qfGfClm,as.numeric))
+
 
 #Grab the POSIX timestamp
 dataClm$DateTime <- EddyDataWithPosix.F$DateTime - lubridate::minutes(30) # putting back to time at the beginning of the measurement period
@@ -736,7 +753,7 @@ dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m", tz='UTC')
 
 
 #Combine data with qap-filling quality flags
-dataClm <- cbind(dataClm, qfClm)
+dataClm <- cbind(dataClm, qfGfClm)
 
 ##############################################################################
 ##!Write CLM output
@@ -774,7 +791,7 @@ lat  <- ncdf4::ncdim_def("lat","degrees_north", as.double(latSite), create_dimva
 lon <- ncdf4::ncdim_def("lon","degrees_east", as.double(lonSite), create_dimvar=TRUE)
 
 #Character dimension for flags
-dimnchar <- ncdim_def("nchar", "", 1:17, create_dimvar=FALSE )
+#dimnchar <- ncdim_def("nchar", "", 1:17, create_dimvar=FALSE )
 
 #Variables to output to netCDF
 time <- ncdf4::ncdim_def("time", paste("days since",tempTime), calendar = "gregorian",
@@ -813,32 +830,32 @@ Rnet  <- ncdf4::ncvar_def("Rnet", "W/m^2", list(lon,lat,time), mv,
                           longname="net radiation", prec="double")
 
 #gap-filling quality flag variables
-FLDS_fqc  <- ncdf4::ncvar_def("FLDS_fqc", "NA", list(dimnchar,time),
-                          longname="incident longwave (FLDS) gap-filling flag", prec="char")
-FSDS_fqc  <- ncdf4::ncvar_def("FSDS_fqc", "NA", list(dimnchar,time),
-                          longname="incident shortwave (FSDS) gap-filling flag", prec="char")
-PRECTmms_fqc <- ncdf4::ncvar_def("PRECTmms_fqc", "NA", list(dimnchar,time), 
-                             longname="precipitation (PRECTmms) gap-filling flag", prec="char")
-PSRF_fqc  <- ncdf4::ncvar_def("PSRF_fqc", "NA", list(dimnchar,time),
-                          longname="pressure at the lowest atmospheric level (PSRF) gap-filling flag", prec="char")
-RH_fqc    <- ncdf4::ncvar_def("RH_fqc", "NA", list(dimnchar,time), 
-                          longname="relative humidity at lowest atm level (RH) gap-filling flag", prec="char")
-TBOT_fqc  <- ncdf4::ncvar_def("TBOT_fqc", "NA", list(dimnchar,time),
-                          longname="temperature at lowest atm level (TBOT) gap-filling flag", prec="char")
-WIND_fqc  <- ncdf4::ncvar_def("WIND_fqc", "NA", list(dimnchar,time), 
-                          longname="wind at lowest atm level (WIND) gap-filling flag", prec="char")
-NEE_fqc <- ncdf4::ncvar_def("NEE_fqc", "NA", list(dimnchar,time), 
-                        longname="net ecosystem exchange gap-filling flag", prec="char")
-FSH_fqc  <- ncdf4::ncvar_def("FSH_fqc", "NA", list(dimnchar,time),
-                         longname="sensible heat flux gap-filling flag", prec="char")
-EFLX_LH_TOT_fqc  <- ncdf4::ncvar_def("EFLX_LH_TOT_fqc", "NA", list(dimnchar,time),
-                                 longname="latent heat flux gap-filling flag", prec="char")
-GPP_fqc <- ncdf4::ncvar_def("GPP_fqc", "NA", list(dimnchar,time),
-                        longname="gross primary productivity gap-filling flag", prec="char")
-Ustar_fqc <- ncdf4::ncvar_def("Ustar_fqc", "NA", list(dimnchar,time),
-                            longname="friction velocity gap-filling flag", prec="char")
-Rnet_fqc  <- ncdf4::ncvar_def("Rnet_fqc", "NA", list(dimnchar,time),
-                          longname="net radiation gap-filling flag", prec="char")
+FLDS_fqc  <- ncdf4::ncvar_def("FLDS_fqc", "NA", list(lon,lat,time),
+                          longname="incident longwave (FLDS) gap-filling flag", prec="integer")
+FSDS_fqc  <- ncdf4::ncvar_def("FSDS_fqc", "NA", list(lon,lat,time),
+                          longname="incident shortwave (FSDS) gap-filling flag", prec="integer")
+PRECTmms_fqc <- ncdf4::ncvar_def("PRECTmms_fqc", "NA", list(lon,lat,time), 
+                             longname="precipitation (PRECTmms) gap-filling flag", prec="integer")
+PSRF_fqc  <- ncdf4::ncvar_def("PSRF_fqc", "NA", list(lon,lat,time),
+                          longname="pressure at the lowest atmospheric level (PSRF) gap-filling flag", prec="integer")
+RH_fqc    <- ncdf4::ncvar_def("RH_fqc", "NA", list(lon,lat,time), 
+                          longname="relative humidity at lowest atm level (RH) gap-filling flag", prec="integer")
+TBOT_fqc  <- ncdf4::ncvar_def("TBOT_fqc", "NA", list(lon,lat,time),
+                          longname="temperature at lowest atm level (TBOT) gap-filling flag", prec="integer")
+WIND_fqc  <- ncdf4::ncvar_def("WIND_fqc", "NA", list(lon,lat,time), 
+                          longname="wind at lowest atm level (WIND) gap-filling flag", prec="integer")
+NEE_fqc <- ncdf4::ncvar_def("NEE_fqc", "NA", list(lon,lat,time), 
+                        longname="net ecosystem exchange gap-filling flag", prec="integer")
+FSH_fqc  <- ncdf4::ncvar_def("FSH_fqc", "NA", list(lon,lat,time),
+                         longname="sensible heat flux gap-filling flag", prec="integer")
+EFLX_LH_TOT_fqc  <- ncdf4::ncvar_def("EFLX_LH_TOT_fqc", "NA", list(lon,lat,time),
+                                 longname="latent heat flux gap-filling flag", prec="integer")
+GPP_fqc <- ncdf4::ncvar_def("GPP_fqc", "NA", list(lon,lat,time),
+                        longname="gross primary productivity gap-filling flag", prec="integer")
+Ustar_fqc <- ncdf4::ncvar_def("Ustar_fqc", "NA", list(lon,lat,time),
+                            longname="friction velocity gap-filling flag", prec="integer")
+Rnet_fqc  <- ncdf4::ncvar_def("Rnet_fqc", "NA", list(lon,lat,time),
+                          longname="net radiation gap-filling flag", prec="integer")
 
 #Create the output file
 ncAtm <- ncdf4::nc_create(fileOutAtm, list(LATIXY,LONGXY,FLDS,FSDS,PRECTmms,RH,PSRF,TBOT,WIND,ZBOT,FLDS_fqc,FSDS_fqc,PRECTmms_fqc,RH_fqc,PSRF_fqc,TBOT_fqc,WIND_fqc))
@@ -882,6 +899,14 @@ ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FSH,EFLX_LH_TOT,G
  ncdf4::ncatt_put(ncAtm, PSRF_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
  ncdf4::ncatt_put(ncAtm, TBOT_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
  ncdf4::ncatt_put(ncAtm, WIND_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ ncdf4::ncatt_put(ncAtm, FLDS_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ ncdf4::ncatt_put(ncAtm, FSDS_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ ncdf4::ncatt_put(ncAtm, RH_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ ncdf4::ncatt_put(ncAtm, PRECTmms_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ ncdf4::ncatt_put(ncAtm, PSRF_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ ncdf4::ncatt_put(ncAtm, TBOT_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ ncdf4::ncatt_put(ncAtm, WIND_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ 
  ncdf4::ncatt_put(ncAtm, 0, "created_on",date()      ,prec=NA,verbose=FALSE,definemode=FALSE )
  ncdf4::ncatt_put(ncAtm, 0, "created_by",user,prec=NA,verbose=FALSE,definemode=FALSE )
  ncdf4::ncatt_put(ncAtm, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
@@ -922,6 +947,12 @@ ncdf4::ncatt_put(ncEval, EFLX_LH_TOT_fqc,"mode","time-dependent" ,prec=NA,verbos
 ncdf4::ncatt_put(ncEval, GPP_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, Ustar_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, Rnet_fqc,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, NEE_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ncdf4::ncatt_put(ncEval, FSH_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ncdf4::ncatt_put(ncEval, EFLX_LH_TOT_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ncdf4::ncatt_put(ncEval, GPP_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ncdf4::ncatt_put(ncEval, Ustar_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ncdf4::ncatt_put(ncEval, Rnet_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
 ncdf4::ncatt_put(ncEval, 0, "created_on",date()      ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, 0, "created_by",user,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
