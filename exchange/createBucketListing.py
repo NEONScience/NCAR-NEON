@@ -1,17 +1,24 @@
 import os
 from boto3 import resource
 import json
+from google.cloud import storage
+import base64
+import binascii
 
 
 def createBucketListing():
-    prefix = "https://neon-ncar.s3.data.neonscience.org/"
-    s3 = getTargetS3("neon-ncar-writer")
-    bucket = s3.Bucket("neon-ncar")
+
+    # During migration to GCS (until sync is disabled), list objects from GCS and upload listing.csv to ECS
+    gcsPrefix = "https://storage.neonscience.org/"
+    gcsBucketName = "neon-ncar"
+    storage_client = storage.Client()
+    blobs = storage_client.list_blobs(gcsBucketName)
     listing = 'object,last_modified,etag' + '\n'
-    for s3object in bucket.objects.all():
-        if s3object.key.endswith('/'):
-            continue
-        listing += prefix + s3object.key + ',' + s3object.last_modified.strftime("%Y-%m-%d %H:%M:%S") + ',' + s3object.e_tag.strip('"') + '\n' 
+    for blob in blobs:
+        checksum = binascii.hexlify(base64.urlsafe_b64decode(blob.md5_hash)).decode()
+        listing += gcsPrefix + gcsBucketName + "/" + blob.name + ',' + blob.updated.strftime("%Y-%m-%d %H:%M:%S") + ',' + checksum + '\n' 
+
+    s3 = getTargetS3("neon-ncar-writer")
     outputObject = s3.Object("neon-ncar", "listing.csv")
     outputObject.put(Body=listing)
 
