@@ -30,7 +30,7 @@
 site <- "NIWO"
 
 #type of data file to download atmospheric (datm) or surface (surf) forcing files
-TypeFile <- c("atm/cdeps", "surf_files", "eval_files")[1]
+TypeFile <- c("atm/cdeps", "surf_files", "eval_files")[2]
 
 #Adding version number to s3 path
 versData <- c("v1")
@@ -53,14 +53,14 @@ PrdWndwDnld <- strftime(DateSeq, format = "%Y-%m")
 
 #logical statement about type of files
 if(TypeFile == "surf_files"){
-  urlDnld <- paste0("https://s3.data.neonscience.org/neon-ncar/NEON/",TypeFile,"/",versData,"/",site,"_surfaceData.csv")
+  urlDnld <- paste0("https://storage.neonscience.org/neon-ncar/NEON/",TypeFile,"/",versData,"/",site,"_surfaceData.csv")
   
   #Download filename (full path)
   fileDnld <- paste0(DirDnld,"/",site,"_",versData,"_surfaceData.csv")
 } else
   {
   #Create URL for data files
-  urlDnld <- paste0("https://s3.data.neonscience.org/neon-ncar/NEON/",TypeFile,"/",versData,"/",site,"/",PrdWndwDnld,".nc")
+  urlDnld <- paste0("https://storage.neonscience.org/neon-ncar/NEON/",TypeFile,"/",versData,"/",site,"/",PrdWndwDnld,".nc")
   
   #Removing extra nesting used by CLM for atm files
   TypeFileDnld <- unlist(strsplit(TypeFile, "/|_"))[1]
