@@ -45,8 +45,8 @@ setSiteTis <- c("BARR","CLBJ","MLBS","DSNY","NIWO","ORNL","OSBS",
 #Site for analysis
 #Site <- "SRER"
 
-dateBgn <- "2018-01-01"
-dateEnd <- "2019-01-01"
+dateBgn <- "2022-01-01"
+dateEnd <- "2022-04-01"
 TimeAgr <- "30"
 Pack <- "basic"
 
@@ -57,7 +57,7 @@ infoProd <- neonUtilities::getProductInfo("DP1.00006.001")
 
 dataPrecip <- neonUtilities::loadByProduct(dpID = listDpNum[["precip"]], startdate = dateBgn, enddate = dateEnd, package = Pack, timeIndex = TimeAgr, check.size = FALSE)
 
-dataSub <- dataPrecip$PRIPRE_30min %>% select(siteID,startDateTime, priPrecipBulk, priPrecipFinalQF) %>% filter(siteID == "HARV")
+dataSub <- dataPrecip$PRIPRE_30min %>% select(siteID,startDateTime, priPrecipBulk, priPrecipFinalQF) %>% filter(siteID == "CPER")
 
   #Plot primary precip 
   p <- ggplot2::ggplot(data = dataPrecip$PRIPRE_30min, aes(x = startDateTime, y= priPrecipBulk))+ 
@@ -190,3 +190,39 @@ plot(lubridate::fast_strptime(dataMeso$first_report, "%Y-%m-%dT%H:%M:%SZ"), data
 plot(as.POSIXct(jsonMeso$STATION$OBSERVATIONS$precipitation[[1]]$first_report),jsonMeso$STATION$OBSERVATIONS$precipitation[[1]]$total)
 
 head(jsonMeso$STATION$OBSERVATIONS$precipitation[[5]]$report_type)
+
+
+
+##########################################################################################
+#Mesonet API testing
+##########################################################################################
+#RNOAA testing
+
+install.packages("rnoaa")
+install.packages("metScanR")
+
+#Define site
+Site <- "CPER"
+
+#Site metadata
+metaSite <- metScanR::getStation(paste0("NEON:",Site))
+
+#Find nearby sites (100 km radius) with precip data
+siteNear <- metScanR::siteFinder(siteID = paste0("NEON:",Site), radius = 10, vars = "precipitation")
+
+station_data <- rnoaa::ghcnd_stations()
+
+siteLocaNoaa <- data.frame(id = Site, latitude = metaSite$CPER$location$latitude_dec, longitude = metaSite$CPER$location$longitude_dec)
+
+# Get all stations within 50 kilometers
+dataNoaaSub <- rnoaa::meteo_nearby_stations(lat_lon_df = siteLocaNoaa, station_data = station_data,
+                      radius = 50, var = c("PRCP", "TMAX"),
+                      year_min = 2017, year_max = 2022)
+# Get the closest 10 monitors
+dataNoaaSub10 <- rnoaa::meteo_nearby_stations(lat_lon_df = siteLocaNoaa, station_data = station_data,
+                      limit = 10, var = c("PRCP", "TMAX"),
+                      year_min = 2017, year_max = 2022)
+
+testData <- rnoaa::meteo_pull_monitors(dataNoaaSub10$CPER$id[1],date_min = "2022-01-01")
+
+dataSub$
