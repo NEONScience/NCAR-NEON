@@ -52,8 +52,8 @@ if(MethOut == "s3"){
   #Secret writing/deleting 
   #keyS3 <- readRDS("home/ddurden/eddy/tmp/ncar_writer_key.RDS")
   #Set ENV variables
-  base::Sys.setenv("S3PATHUPLDATM" = "NEON/atm/cdeps/v1")
-  base::Sys.setenv("S3PATHUPLDEVAL" = "NEON/eval_files/v1")
+  base::Sys.setenv("S3PATHUPLDATM" = "NEON/atm/cdeps/v2")
+  base::Sys.setenv("S3PATHUPLDEVAL" = "NEON/eval_files/v2")
   base::Sys.setenv("NEON_S3_ACCESS_KEY_ID" = "neon-ncar-writer")
   base::Sys.setenv("NEON_S3_SECRET_KEY" = "Xq6pzt19bhw9EHjdYgffB1oTypVhNU6/2mbp7Z6o")
   base::Sys.setenv("NEON_S3_ENDPOINT" = "s3.data.neonscience.org")
@@ -73,7 +73,7 @@ if(MethOut == "s3"){
 ##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "PUUM"
+Site <- "CPER"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -82,7 +82,7 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2021-09-30"
+dateEnd <- "2022-01-30"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
@@ -214,9 +214,19 @@ dataList <- list()
       "TIMESTAMP_START" = as.POSIXlt(dataList$dp04[[Site]]$timeBgn, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"), #Timestamp represents end of period in ReddyProc
       "TIMESTAMP_END" = as.POSIXlt(dataList$dp04[[Site]]$timeEnd, format="%Y-%m-%dT%H:%M:%OSZ", tz = "GMT"),
       "NEE"= dataList$dp04[[Site]]$data.fluxCo2.nsae.flux,#Net ecosystem exchange (turb + stor)
+      "qfNEE"= dataList$dp04[[Site]]$qfqm.fluxCo2.nsae.qfFinl,#Net ecosystem exchange (turb + stor)
+      "FC"= dataList$dp04[[Site]]$data.fluxCo2.turb.flux,#CO2 flux (turb)
+      "qfFC"= dataList$dp04[[Site]]$qfqm.fluxCo2.turb.qfFinl,#CO2 flux (turb)
       "LE" = dataList$dp04[[Site]]$data.fluxH2o.turb.flux, #Latent heat flux (turb)
+      "qfLE" = dataList$dp04[[Site]]$qfqm.fluxH2o.turb.qfFinl, #Latent heat flux (turb)
+      "LE_NSAE" = dataList$dp04[[Site]]$data.fluxH2o.nsae.flux, #Latent heat flux (nsae)
+      "qfLE_NSAE" = dataList$dp04[[Site]]$qfqm.fluxH2o.nsae.qfFinl, #Latent heat flux (nsae)
       "Ustar" = dataList$dp04[[Site]]$data.fluxMome.turb.veloFric, #Friction velocity
-      "H" = dataList$dp04[[Site]]$data.fluxTemp.turb.flux,#Sensible heat flux (turb)
+      "qfUstar" = dataList$dp04[[Site]]$qfqm.fluxMome.turb.qfFinl, #Friction velocity
+      "H" = dataList$dp04[[Site]]$data.fluxTemp.turb.flux, #Sensible heat flux (turb)
+      "qfH" = dataList$dp04[[Site]]$qfqm.fluxTemp.turb.qfFinl,#Sensible heat flux quality flag (turb)
+      "H_NSAE" = dataList$dp04[[Site]]$data.fluxTemp.nsae.flux,#Sensible heat flux (nsae)
+      "qfH_NSAE" = dataList$dp04[[Site]]$qfqm.fluxTemp.nsae.qfFinl,
       "qfTurbFlow" = dataList$dp01$frt00Samp[[Site]][which(dataList$dp01$frt00Samp[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.frt00Samp.qfFinl"],
       "qfTurbH2oFinl" = dataList$dp01$rtioMoleDryH2o[[Site]][which(dataList$dp01$rtioMoleDryH2o[[Site]]$verticalPosition == IdVer), "qfqm.h2oTurb.rtioMoleDryH2o.qfFinl"],
       "qfTurbCo2Finl" = dataList$dp01$rtioMoleDryCo2[[Site]][which(dataList$dp01$rtioMoleDryCo2[[Site]]$verticalPosition == IdVer), "qfqm.co2Turb.rtioMoleDryCo2.qfFinl"],
@@ -519,6 +529,21 @@ qfGf$radNet <- data.frame("radNet" = dataMetSubRglr$Rg$inSWFinalQF, "radNet_002"
 #Grab temp qfqm streams
 qfGf$WS_MDS <- data.frame("WS_MDS" = dataDfFlux$qfWS_MDS,"WS_MDS_002" = dataMetSubRglr$WS_MDS$windSpeedFinalQF, "WS_MDS_003" = dataMetSubRglr$WS_MDS_002$windSpeedFinalQF)
 
+#Grab Rg data streams
+dataGf$PAR <- data.frame("PAR" = dataMetSubRglr$PAR$PARMean, "PAR_002" =  dataMetSubRglr$Rg$inSWMean, "PAR_003" =  dataMetSubRglr$SW_DIR$gloRadMean)
+#Grab Rg qfqm streams
+qfGf$PAR <- data.frame("PAR" = dataMetSubRglr$PAR$PARFinalQF, "PAR_002" = dataMetSubRglr$Rg$inSWFinalQF, "PAR_003" = dataMetSubRglr$SW_DIR$gloRadFinalQF)
+
+#Grab Rg data streams
+dataGf$RadDir <- data.frame("RadDir" = dataMetSubRglr$SW_DIR$dirRadMean, "RadDir_002" =  dataMetSubRglr$SW_DIR$gloRadMean)
+#Grab Rg qfqm streams
+qfGf$RadDir <- data.frame("RadDir" = dataMetSubRglr$SW_DIR$dirRadFinalQF, "RadDir_002" = dataMetSubRglr$SW_DIR$gloRadFinalQF)
+
+#Grab Rg data streams
+dataGf$RadDif <- data.frame("RadDif" = dataMetSubRglr$SW_DIR$difRadMean, "RadDif_002" =  dataMetSubRglr$SW_DIR$gloRadMean)
+#Grab Rg qfqm streams
+qfGf$RadDif <- data.frame("RadDif" = dataMetSubRglr$SW_DIR$difRadFinalQF, "RadDif_002" = dataMetSubRglr$SW_DIR$gloRadFinalQF)
+
 
 #Variables to apply quality flag removal to main variable
 nameQfVar <- names(dataGf)[!names(dataGf) %in% "PRECTmms_MDS"]
@@ -569,7 +594,7 @@ qfGfMet <- as.data.frame(sapply(rpt, function(x){
 names(qfGfMet) <- paste0(names(qfGfMet),"_fqc")
 
 #Flux variables to report
-varRptFlux <- c("NEE", "LE", "Ustar", "H", "TIMESTAMP") 
+varRptFlux <- c("NEE", "qfNEE", "FC", "qfFC", "LE", "qfLE", "LE_NSAE", "qfLE_NSAE",  "Ustar", "qfUstar", "H", "qfH", "H_NSAE", "qfH_NSAE","TIMESTAMP") 
 
 #Bind data frames together
 dataDf <- cbind(dataDfFlux[,varRptFlux], dataDfMet)
@@ -589,7 +614,7 @@ dataDf$Hour <- lubridate::hour(dataDf$TIMESTAMP) + lubridate::minute(dataDf$TIME
 dataDf$TIMESTAMP <- NULL
 
 #Vector of units for each variable
-unitDf <- c("Year" = "--", "DoY" = "--", "Hour" = "--", "NEE" = "umolm-2s-1", "LE" = "Wm-2", "H" = "Wm-2", "Ustar" = "ms-1", "WS_MDS" = "ms-1", "Pa_MDS" = "kPa", "Tair" = "degC", "PRECTmms_MDS" = "mms-1", "rH" = "%", "FLDS_MDS" = "Wm-2", "Rg" = "Wm-2", "radNet" = "Wm-2")
+unitDf <- c("Year" = "--", "DoY" = "--", "Hour" = "--", "NEE" = "umolm-2s-1", "FC" = "umolm-2s-1", "LE" = "Wm-2", "LE_NSAE" = "Wm-2", "H" = "Wm-2", "H_NSAE" = "Wm-2", "Ustar" = "ms-1", "WS_MDS" = "ms-1", "Pa_MDS" = "kPa", "Tair" = "degC", "PRECTmms_MDS" = "mms-1", "rH" = "%", "FLDS_MDS" = "Wm-2", "Rg" = "Wm-2", "radNet" = "Wm-2", "RadDir" = "Wm-2", "RadDif" = "Wm-2", "PAR" = "umolm-2s-1", "qfNEE" = "NA", "qfFC" = "NA", "qfLE" = "NA", "qfLE_NSAE" = "NA", "qfH" = "NA", "qfH_NSAE" = "NA", "qfUstar" = "NA")
 
 #Set the output data column order based off of the units vector
 dataDf <- data.table::setcolorder(dataDf, names(unitDf))
@@ -630,6 +655,10 @@ EddyData.F$NEE[EddyData.F$NEE > 50] <- NA
 #Threshold bounds to prevent NEE < -50
 EddyData.F$NEE[EddyData.F$NEE < -50] <- NA
 
+EddyData.F$FC[EddyData.F$FC > 50] <- NA
+#Threshold bounds to prevent NEE < -50
+EddyData.F$FC[EddyData.F$FC < -50] <- NA
+
 #+++ If not provided, calculate VPD from Tair and rH
 EddyData.F <- cbind(EddyData.F,VPD=fCalcVPDfromRHandTair(EddyData.F$rH, EddyData.F$Tair))
 
@@ -639,7 +668,7 @@ EddyDataWithPosix.F <- fConvertTimeToPosix(EddyData.F, 'YDH', Year='Year', Day='
 
 #+++ Initalize R5 reference class sEddyProc for processing of eddy data
 #+++ with all variables needed for processing later
-EddyProc.C <- sEddyProc$new(Site, EddyDataWithPosix.F, c('NEE','Rg','Tair','VPD','rH','LE','H','Ustar','Pa_MDS', 'FLDS_MDS','WS_MDS', 'PRECTmms_MDS', 'radNet'))
+EddyProc.C <- sEddyProc$new(Site, EddyDataWithPosix.F, c('NEE','Rg','Tair','VPD','rH','FC','LE','LE_NSAE','H', 'H_NSAE','Ustar','Pa_MDS', 'FLDS_MDS','WS_MDS', 'PRECTmms_MDS', 'radNet', 'RadDir', 'RadDif', 'PAR', 'qfNEE', 'qfFC', 'qfLE', 'qfLE_NSAE', 'qfH', 'qfH_NSAE', 'qfUstar'))
 
 #Set location information
 EddyProc.C$sSetLocationInfo(LatDeg=latSite, LongDeg=metaSite$LonTow, TimeZoneHour = metaSite$TimeDiffUtcLst)
@@ -665,6 +694,7 @@ EddyProc.C$sMRFluxPartition()
 
 #+++ Export gap filled and partitioned data to standard data frame
 FilledEddyData.F <- EddyProc.C$sExportResults()
+EvalDataUnfilled <- EddyProc.C$sExportData()
 
 
 #Grab just the filled data products & rename variables
@@ -751,6 +781,7 @@ attributes(obj = dataClm$ZBOT)$units <- "m"
 #Year month combination for data filtering
 dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m", tz='UTC')
 
+dataClm <- cbind(dataClm,EvalDataUnfilled[,c("RadDif","RadDir","qfNEE", "FC", "qfFC", "qfLE", "LE_NSAE", "qfLE_NSAE", "qfUstar", "qfH", "H_NSAE", "qfH_NSAE")])
 
 #Combine data with qap-filling quality flags
 dataClm <- cbind(dataClm, qfGfClm)
@@ -818,16 +849,38 @@ ZBOT  <- ncdf4::ncvar_def("ZBOT", "m", list(lon,lat,time), mv,
                       longname="observational height", prec="double")
 NEE <- ncdf4::ncvar_def("NEE", "umolm-2s-1", list(lon,lat,time), mv,
                           longname="net ecosystem exchange", prec="double")
+FC <- ncdf4::ncvar_def("FC", "umolm-2s-1", list(lon,lat,time), mv,
+                        longname="turbulent CO2 flux", prec="double")
 FSH  <- ncdf4::ncvar_def("FSH", "Wm-2", list(lon,lat,time), mv,
                           longname="sensible heat flux", prec="double")
 EFLX_LH_TOT  <- ncdf4::ncvar_def("EFLX_LH_TOT", "Wm-2", list(lon,lat,time), mv,
                                  longname="latent heat flux", prec="double")
+FSH_NSAE  <- ncdf4::ncvar_def("FSH_NSAE", "Wm-2", list(lon,lat,time), mv,
+                         longname="sensible heat flux net surface atmosphere exchange (turbulent + storage)", prec="double")
+EFLX_LH_TOT_NSAE  <- ncdf4::ncvar_def("EFLX_LH_TOT_NSAE", "Wm-2", list(lon,lat,time), mv, longname="latent heat flux net surface atmosphere exchange (turbulent + storage)", prec="double")
 GPP <- ncdf4::ncvar_def("GPP", "umolm-2s-1", list(lon,lat,time), mv,
                         longname="gross primary productivity", prec="double")
 Ustar <- ncdf4::ncvar_def("Ustar", "m/s", list(lon,lat,time), mv,
                         longname="friction velocity", prec="double")
 Rnet  <- ncdf4::ncvar_def("Rnet", "W/m^2", list(lon,lat,time), mv,
                           longname="net radiation", prec="double")
+RadDif <- ncdf4::ncvar_def("RadDif", "W/m^2", list(lon,lat,time), mv,
+                          longname="diffuse radiation", prec="double")
+RadDir  <- ncdf4::ncvar_def("RadDir", "W/m^2", list(lon,lat,time), mv,
+                          longname="direct radiation", prec="double")
+#quality flag variables
+qfNEE <- ncdf4::ncvar_def("qfNEE", "NA", list(lon,lat,time), mv,
+                        longname="net ecosystem exchange final quality flag", prec="integer")
+qfFC <- ncdf4::ncvar_def("qfFC", "NA", list(lon,lat,time), mv,
+                       longname="turbulent CO2 flux final quality flag", prec="integer")
+qfFSH  <- ncdf4::ncvar_def("qfFSH", "NA", list(lon,lat,time), mv,
+                         longname="sensible heat flux final quality flag", prec="integer")
+qfEFLX_LH_TOT  <- ncdf4::ncvar_def("qfEFLX_LH_TOT", "NA", list(lon,lat,time), mv,
+                                 longname="latent heat flux final quality flag", prec="integer")
+qfFSH_NSAE  <- ncdf4::ncvar_def("qfFSH_NSAE", "NA", list(lon,lat,time), mv,
+                              longname="sensible heat flux net surface atmosphere exchange (turbulent + storage) final quality flag", prec="integer")
+
+qfEFLX_LH_TOT_NSAE  <- ncdf4::ncvar_def("qfEFLX_LH_TOT_NSAE", "NA", list(lon,lat,time), mv, longname="latent heat flux net surface atmosphere exchange (turbulent + storage) final quality flag", prec="integer")
 
 #gap-filling quality flag variables
 FLDS_fqc  <- ncdf4::ncvar_def("FLDS_fqc", "NA", list(lon,lat,time),
@@ -860,7 +913,7 @@ Rnet_fqc  <- ncdf4::ncvar_def("Rnet_fqc", "NA", list(lon,lat,time),
 #Create the output file
 ncAtm <- ncdf4::nc_create(fileOutAtm, list(LATIXY,LONGXY,FLDS,FSDS,PRECTmms,RH,PSRF,TBOT,WIND,ZBOT,FLDS_fqc,FSDS_fqc,PRECTmms_fqc,RH_fqc,PSRF_fqc,TBOT_fqc,WIND_fqc))
 
-ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FSH,EFLX_LH_TOT,GPP,Ustar,Rnet,ZBOT,NEE_fqc,FSH_fqc,EFLX_LH_TOT_fqc,GPP_fqc,Ustar_fqc,Rnet_fqc))
+ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FC,FSH,EFLX_LH_TOT,FSH_NSAE,EFLX_LH_TOT_NSAE,GPP,Ustar,Rnet,RadDif,RadDir,ZBOT,NEE_fqc,FSH_fqc,EFLX_LH_TOT_fqc,GPP_fqc,Ustar_fqc,Rnet_fqc,qfNEE,qfFC,qfFSH,qfEFLX_LH_TOT,qfFSH_NSAE,qfEFLX_LH_TOT_NSAE))
 
 
 # Write some values to this variable on disk.
@@ -920,11 +973,16 @@ ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FSH,EFLX_LH_TOT,G
  ncdf4::ncvar_put(ncEval, LATIXY, latSite)
  ncdf4::ncvar_put(ncEval, LONGXY, lonSite) 
  ncdf4::ncvar_put(ncEval, NEE, Data.mon$NEE)
+ ncdf4::ncvar_put(ncEval, FC, Data.mon$FC)
  ncdf4::ncvar_put(ncEval, FSH, Data.mon$H)
+ ncdf4::ncvar_put(ncEval, FSH_NSAE, Data.mon$H_NSAE)
  ncdf4::ncvar_put(ncEval, EFLX_LH_TOT, Data.mon$LE)
+ ncdf4::ncvar_put(ncEval, EFLX_LH_TOT_NSAE, Data.mon$LE_NSAE)
  ncdf4::ncvar_put(ncEval, GPP, Data.mon$GPP)
  ncdf4::ncvar_put(ncEval, Ustar, Data.mon$Ustar)
  ncdf4::ncvar_put(ncEval, Rnet, Data.mon$radNet)
+ ncdf4::ncvar_put(ncEval, RadDir, Data.mon$RadDir)
+ ncdf4::ncvar_put(ncEval, RadDif, Data.mon$RadDif)
  ncdf4::ncvar_put(ncEval, ZBOT, Data.mon$ZBOT)
  ncdf4::ncvar_put(ncEval, NEE_fqc, Data.mon$NEE_fqc)
  ncdf4::ncvar_put(ncEval, FSH_fqc, Data.mon$H_fqc)
@@ -932,14 +990,25 @@ ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FSH,EFLX_LH_TOT,G
  ncdf4::ncvar_put(ncEval, GPP_fqc, Data.mon$GPP_fqc)
  ncdf4::ncvar_put(ncEval, Ustar_fqc, Data.mon$Ustar_fqc)
  ncdf4::ncvar_put(ncEval, Rnet_fqc, Data.mon$radNet_fqc)
+ ncdf4::ncvar_put(ncEval, qfNEE, Data.mon$qfNEE)
+ ncdf4::ncvar_put(ncEval, qfFC, Data.mon$qfFC)
+ ncdf4::ncvar_put(ncEval, qfFSH, Data.mon$qfH)
+ ncdf4::ncvar_put(ncEval, qfFSH_NSAE, Data.mon$qfH_NSAE)
+ ncdf4::ncvar_put(ncEval, qfEFLX_LH_TOT, Data.mon$qfLE)
+ ncdf4::ncvar_put(ncEval, qfEFLX_LH_TOT_NSAE, Data.mon$qfLE_NSAE)
 
 
 ncdf4::ncatt_put(ncEval, NEE,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, FC,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, FSH,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, FSH_NSAE,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, EFLX_LH_TOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, EFLX_LH_TOT_NSAE,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, GPP,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, Ustar,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, Rnet,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, RadDif,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, RadDir,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, ZBOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, NEE_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, FSH_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
@@ -953,6 +1022,16 @@ ncdf4::ncatt_put(ncEval, EFLX_LH_TOT_fqc,"method_gap-fill","0=no gap-filling, 1=
 ncdf4::ncatt_put(ncEval, GPP_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
 ncdf4::ncatt_put(ncEval, Ustar_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
 ncdf4::ncatt_put(ncEval, Rnet_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+
+#Quality flag attributes
+ncdf4::ncatt_put(ncEval, qfNEE,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, qfFC,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, qfFSH,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, qfFSH_NSAE,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, qfEFLX_LH_TOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, qfEFLX_LH_TOT_NSAE,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+
+#Global attributes
 ncdf4::ncatt_put(ncEval, 0, "created_on",date()      ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, 0, "created_by",user,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, 0, "created_from",fileOut   ,prec=NA,verbose=FALSE,definemode=FALSE )
@@ -966,8 +1045,8 @@ ncdf4::nc_close(ncAtm)
 ncdf4::nc_close(ncEval)
 
 remove(time, timeStep, fileOutAtm, fileOutEval, ncAtm, ncEval, Data.mon,
-       FLDS,FSDS,RH,PRECTmms,PSRF,TBOT,WIND,ZBOT, NEE, FSH,EFLX_LH_TOT, GPP, Ustar, Rnet,
-       FLDS_fqc,FSDS_fqc,RH_fqc,PRECTmms_fqc,PSRF_fqc,TBOT_fqc,WIND_fqc, NEE_fqc, FSH_fqc,EFLX_LH_TOT_fqc, GPP_fqc, Ustar_fqc, Rnet_fqc)
+       FLDS,FSDS,RH,PRECTmms,PSRF,TBOT,WIND,ZBOT, NEE,FC, FSH, FSH_NSAE, EFLX_LH_TOT, EFLX_LH_TOT_NSAE,GPP, Ustar, Rnet,RadDif,RadDir,
+       FLDS_fqc,FSDS_fqc,RH_fqc,PRECTmms_fqc,PSRF_fqc,TBOT_fqc,WIND_fqc, NEE_fqc, FSH_fqc,EFLX_LH_TOT_fqc, GPP_fqc, Ustar_fqc, Rnet_fqc,qfNEE,qfFC,qfFSH,qfFSH_NSAE,qfEFLX_LH_TOT,qfEFLX_LH_TOT_NSAE)
   } #End of monthloop
 
 #} #End of year loop
