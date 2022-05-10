@@ -43,9 +43,30 @@ options(stringsAsFactors=F)
 ###############################################################################
 ##!Set options to local vs s3 and define S3 ENV variables
 ###############################################################################
-MethOut <- c("local", "s3")[2] # CHANGE ME FOR DESIRED CONFIGURATION
+MethOut <- c("local", "s3", "gcs")[3] # CHANGE ME FOR DESIRED CONFIGURATION
 
+if(MethOut == "gcs"){
 
+# S3 Bucket
+buck = "neon-ncar"
+
+# Setting up environment
+Sys.setenv(#"AWS_ACCESS_KEY_ID" = buck,
+  #"AWS_SECRET_ACCESS_KEY" = keyS3,
+  #"AWS_S3_ENDPOINT" = "neonscience.org",
+  #"AWS_DEFAULT_REGION" = "s3.data",
+  "GCS_AUTH_FILE" = "/home/ddurden/eddy/tmp/neon_ncar_writer.json"
+)
+
+gcsCred <- Sys.getenv("GCS_AUTH_FILE")
+
+# gcs credentials authorize
+tryCatch({googleCloudStorageR::gcs_auth(json_file=gcsCred)},
+         error=function(cond) {
+           stop(paste0("Failed to authorize GCS credentials by ", key_file))
+         })
+
+}#end method GCS
 
 if(MethOut == "s3"){
   #S3 information
@@ -82,7 +103,7 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2022-01-30"
+dateEnd <- "2022-03-31"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
@@ -137,6 +158,42 @@ idDpFlux <- 'DP4.00200.001'
 #Set dates for pulling data from API
 dateBgn <- as.Date(dateBgn) - lubridate::days(1) #neonUtitilities a month behind
 dateEnd <- as.Date(dateEnd)
+
+##############################################################################
+##!Flux data download
+##############################################################################
+
+#Testing bucket listing
+listObjGcs <- googleCloudStorageR::gcs_list_objects(bucket = buck, prefix = "NEON/qfVali/")$name
+
+#Filename for flux QFQM
+fileObjValiGcs <- paste0("NEON/qfVali/",Site,"_2017-2022.rds")
+
+
+#Check if data is available in GCS for the current year
+logiDataGcs <-fileObjValiGcs %in% listObjGcs
+
+#Check if object exists
+#logiDataS3 <- aws.s3::object_exists(object = paste0("qfqm_flux_shiny/v20210104/",Site,"/", Site,"_",lubridate::year(dateEnd),".rds"), bucket = s3Buck)
+
+if(logiDataGcs == TRUE){
+  #Read in data currently formatted and stored in S3
+  #listDfIn <- aws.s3::s3readRDS(object = paste0("qfqm_flux_shiny/v20210104/",Site,"/", Site,"_",lubridate::year(dateEnd),".rds"), bucket = s3Buck)
+  
+  #temporary directory and local file name
+  DirTmp <- tempdir() 
+  fileObjValiLocl <- paste0(DirTmp,"/", Site,"_2017-2022.rds")
+  
+  #Read in data currently formatted and stored in S3
+  googleCloudStorageR::gcs_get_object(object = fileObjValiGcs, bucket = buck, saveToDisk = fileObjValiLocl, overwrite = TRUE)
+  
+  #Read in data from local temp directory after download from GCS  
+  dfVali <- readRDS(file = fileObjValiLocl)
+  
+  #Subset down to data being processed
+  dfValiSub <- dfVali[as.Date(dfVali$Date) >= as.Date(dateBgn) + 1 & as.Date(dfVali$Date) <= as.Date(dateEnd),] 
+}
+
 
 ##############################################################################
 ##!Flux data download
@@ -339,9 +396,66 @@ dataDfFlux$TIMESTAMP <- timeRglr$timeRglr+ lubridate::minutes(30)
  # dataDfFlux$TIMESTAMP_END <- strftime(timeRglr$timeRglr+ lubridate::minutes(30), format = "%Y%m%d%H%M")
 
 
-dataDfFlux$NEE[(which(dataDfFlux$qfTurbFlow == 1))] <- NaN
-dataDfFlux$LE[(which(dataDfFlux$qfTurbFlow == 1))] <- NaN
+dataDfFlux$NEE[(which(dataDfFlux$qfTurbCo2Finl == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
+dataDfFlux$LE[(which(dataDfFlux$qfTurbH2oFinl == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
+dataDfFlux$FC[(which(dataDfFlux$qfTurbCo2Finl == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
+dataDfFlux$H[(which(dataDfFlux$qfTempAirSoni == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
+dataDfFlux$Ustar[(which(dataDfFlux$qfUstar == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
+dataDfFlux$LE_NSAE[(which(dataDfFlux$qfTurbH2oFinl == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
+dataDfFlux$H_NSAE[(which(dataDfFlux$qfTempAirSoni == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
 #dataDfFlux$Pa_MDS[(which(dataDfFlux$qfTurbFlow == 1))] <- NaN
+
+#Set Rng thresholds
+#assign list
+Rng <- list()
+
+Rng$Min <- data.frame(
+  "FC" = -100,            #[umol m-2 s-1]
+  "NEE" = -100,            #[umol m-2 s-1]
+  "LE" = -500,            #[W m-2]
+  "LE_NSAE" = -500,            #[W m-2]
+  "H" = -500,             #[W m-2]
+  "H_NSAE" = -500,             #[W m-2]
+  "USTAR" = 0,            #[m s-1]
+  "WS_MDS" = 0,         #[m s-1]
+  "WS_MAX_1_1_1" = 0,     #[m s-1]
+  "tempAirSoni" = -55.0,       #[C]
+  "tempAirTop" = -55.0       #[C]
+)
+
+
+#Set Max thresholds
+Rng$Max <- data.frame(
+  "FC" = 100,            #[umol m-2 s-1]
+  "NEE" = 100,            #[umol m-2 s-1]
+  "LE" = 1000,            #[W m-2]
+  "LE_NSAE" = 1000,            #[W m-2]
+  "H" = 1000,             #[W m-2]
+  "H_NSAE" = 1000,             #[W m-2]
+  "USTAR" = 5,            #[m s-1]
+  "WS_MDS" = 50,         #[m s-1]
+  "tempAirSoni" = 45.0,       #[C]
+  "tempAirTop" = 45.0       #[C]
+)
+
+
+#Apply the range test to the output, and replace values with NaN
+lapply(names(dataDfFlux), function(x) {
+  dataDfFlux[which(dataDfFlux[,x]<Rng$Min[[x]] | dataDfFlux[,x]>Rng$Max[[x]]),x] <<- NaN})
+
+#Remove bad validation data for CO2 fluxes
+for(idx in dfValiSub$Date){
+  #idx <- dfValiSub$Date[1]
+  #test[idx]
+  tmpIdx <- which(as.Date(dataDfFlux$TIMESTAMP) == idx)
+  if(dfValiSub[dfValiSub$Date == idx, "qfVali"] == 1){
+    print(idx)
+    print(tmpIdx)
+    dataDfFlux$NEE[tmpIdx] <- NaN
+    dataDfFlux$FC[tmpIdx] <- NaN
+    #dataDfFlux$NEE[test,] <- NaN
+  }
+}
 
 
 #Remove flagging variables from output
@@ -372,7 +486,7 @@ base::file.remove(base::list.files(DirDnld, full.names = TRUE, recursive = TRUE)
 listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001", "TBOT" = "DP1.00003.001", "PAR" = "DP1.00024.001", "SW_DIR" = "DP1.00014.001", "WS_MDS" = "DP1.00001.001")
 
 #names for individual variables of interest
-varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min", "PAR" = "PARPAR_30min", "SW_DIR" = "SRDDP_30min", "WS_MDS" = "twoDWSD_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
+varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min", "PAR" = "PARPAR_30min", "SW_DIR" = "SRDDP_30min", "WS_MDS" = "2DWSD_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
 
 #Sub data product variables
 subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inLWMean", "Rg" = "inSWMean", "Pa_MDS" = "staPresMean", "TBOT" = "tempTripleMean", "PAR" = "PARMean", "SW_DIR" = "gloRadMean", "WS_MDS" = "windSpeedMean")
@@ -404,7 +518,7 @@ subVarQf["PRECTmms_MDS"] <- ifelse(test = varDp["PRECTmms_MDS"] == "SECPRE_30min
 
 #Grab the actual data tables
 dataMetSub <- lapply(seq_along(varDp), function(x) {
-  #print(x)
+  print(x)
   tmp <- dataMet[[names(varDp[x])]][[grep(pattern = varDp[[x]], x = names(dataMet[[names(varDp[x])]]))]]
   return(tmp)
 })
@@ -570,7 +684,7 @@ rpt <- list()
 #Run Replicate stream gap-filling function
 rpt <- lapply(names(dataGf), function(x){
   #x <- "Tair" #For testing
- NEON.gf::def.gf.rep(dataGf = dataGf[[x]], NameVarGf = names(dataGf[[x]])[1], NameVarRep = names(dataGf[[x]])[-1])
+ def.gf.rep(dataGf = dataGf[[x]], NameVarGf = names(dataGf[[x]])[1], NameVarRep = names(dataGf[[x]])[-1])
 }) #End lapply around gap-fill function
 
 #Add names to list of data.frames
@@ -870,17 +984,17 @@ RadDir  <- ncdf4::ncvar_def("RadDir", "W/m^2", list(lon,lat,time), mv,
                           longname="direct radiation", prec="double")
 #quality flag variables
 qfNEE <- ncdf4::ncvar_def("qfNEE", "NA", list(lon,lat,time), mv,
-                        longname="net ecosystem exchange final quality flag", prec="integer")
+                        longname="net ecosystem exchange final quality flag, 0 = good data and 1 = flagged data", prec="integer")
 qfFC <- ncdf4::ncvar_def("qfFC", "NA", list(lon,lat,time), mv,
-                       longname="turbulent CO2 flux final quality flag", prec="integer")
+                       longname="turbulent CO2 flux final quality flag, 0 = good data and 1 = flagged data", prec="integer")
 qfFSH  <- ncdf4::ncvar_def("qfFSH", "NA", list(lon,lat,time), mv,
-                         longname="sensible heat flux final quality flag", prec="integer")
+                         longname="sensible heat flux final quality flag, 0 = good data and 1 = flagged data", prec="integer")
 qfEFLX_LH_TOT  <- ncdf4::ncvar_def("qfEFLX_LH_TOT", "NA", list(lon,lat,time), mv,
-                                 longname="latent heat flux final quality flag", prec="integer")
+                                 longname="latent heat flux final quality flag, 0 = good data and 1 = flagged data", prec="integer")
 qfFSH_NSAE  <- ncdf4::ncvar_def("qfFSH_NSAE", "NA", list(lon,lat,time), mv,
-                              longname="sensible heat flux net surface atmosphere exchange (turbulent + storage) final quality flag", prec="integer")
+                              longname="sensible heat flux net surface atmosphere exchange (turbulent + storage) final quality flag, 0 = good data and 1 = flagged data", prec="integer")
 
-qfEFLX_LH_TOT_NSAE  <- ncdf4::ncvar_def("qfEFLX_LH_TOT_NSAE", "NA", list(lon,lat,time), mv, longname="latent heat flux net surface atmosphere exchange (turbulent + storage) final quality flag", prec="integer")
+qfEFLX_LH_TOT_NSAE  <- ncdf4::ncvar_def("qfEFLX_LH_TOT_NSAE", "NA", list(lon,lat,time), mv, longname="latent heat flux net surface atmosphere exchange (turbulent + storage) final quality flag, 0 = good data and 1 = flagged data", prec="integer")
 
 #gap-filling quality flag variables
 FLDS_fqc  <- ncdf4::ncvar_def("FLDS_fqc", "NA", list(lon,lat,time),
