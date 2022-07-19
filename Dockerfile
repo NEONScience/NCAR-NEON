@@ -1,7 +1,7 @@
 # start with the ropensci image including debian:testing, r-base, rocker/rstudio, rocker/hadleyverse
 # https://hub.docker.com/r/rocker/ropensci/
 FROM quay.io/battelleecology/rstudio:3.6.1
-
+#
 WORKDIR /home/NCAR-NEON
 # copy clone of GitHub source repo "NEONScience/NEON-FIU-algorithm" to the Docker image
 COPY . .
@@ -56,12 +56,14 @@ ENV MAKEFLAGS='-j3'
     gridExtra \
     tidyverse \
     naniar \
-    Rfast \
     aws.s3 \
     neonUtilities \
+    googleCloudStorageR \
     
      ## from bioconductor
     && R -e "BiocManager::install('rhdf5', update=FALSE, ask=FALSE)" \
+    
+    && R -e "install.packages('Rfast')" \
     #Install packages from github repos
    # && R -e "devtools::install_github('NEONScience/eddy4R/pack/eddy4R.base')" \
     && R -e "devtools::install(pkg = 'gapFilling/pack/NEON.gf', dependencies=TRUE, upgrade = TRUE)" \
