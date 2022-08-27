@@ -124,7 +124,7 @@ def get_data (var, freq, this_site, date):
 
     # get CLM data
 #    json_list = sorted(glob("./jsons-gcs/" + this_site + ".transient*" + month + "*.json"))
-    json_list = client.list_blobs('neon-ncar-dev', prefix='jsons-gcs/'+this_site+".transient.clm2.h1."+month)
+    json_list = client.list_blobs('neon-ncar-dev', prefix='jsons-gcs-monthly/'+this_site+".transient.clm2.h1."+month)
     m_list = []
     for js in tqdm(json_list):
 #      with open(js) as f:
@@ -134,7 +134,7 @@ def get_data (var, freq, this_site, date):
 
     # get NEON data
 #    json_list = sorted(glob("./jsons-gcs/" + this_site + "_eval*" + month + "*.json"))
-    json_list = client.list_blobs('neon-ncar-dev', prefix='jsons-gcs/'+this_site+"_eval_"+month)
+    json_list = client.list_blobs('neon-ncar-dev', prefix='jsons-gcs-monthly/'+this_site+"_eval_"+month)
     m_list = []
     for js in tqdm(json_list):
       with gcs_file_system.open("gs://neon-ncar-dev/" + js.name) as f:
