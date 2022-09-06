@@ -48,8 +48,6 @@ setSiteTis <- c("BARR","CLBJ","MLBS","DSNY","NIWO","ORNL","OSBS",
 #Parameters
 dateBgn <- "2018-01-01"
 dateEnd <- "2022-04-01"
-numDay <- difftime(as.POSIXct(dateEnd), as.POSIXct(dateBgn, tz="UTC"), units="days")
-
 TimeAgr <- "30"
 Pack <- "basic"
 MethDnld <- FALSE #Logical to download data or load from file
@@ -252,21 +250,21 @@ dataNoaaSub10 <- rnoaa::meteo_nearby_stations(lat_lon_df = siteLocaNoaa, station
                       year_min = lubridate::year(dateBgn), year_max = lubridate::year(dateEnd))
 
 #Pull data from the RNOAA for dateBgn to dateEnd
-testData <- rnoaa::meteo_pull_monitors(dataNoaaSub10[[Site]]$id[2],date_min = dateBgn, date_max = dateEnd)
+testData <- rnoaa::meteo_pull_monitors(dataNoaaSub10[[Site]]$id[1],date_min = dateBgn, date_max = dateEnd)
 
-#Read all nearby site data
-listData <- lapply(seq_along(dataNoaaSub10[[Site]]$id), function(x){
-  rnoaa::meteo_pull_monitors(dataNoaaSub10[[Site]]$id[x],date_min = dateBgn, date_max = dateEnd)
+#Pull data from the RNOAA for dateBgn to dateEnd
+testData2 <- lapply(seq_along(dataNoaaSub10[[Site]]$id), function(x){
+  dataTmp <- rnoaa::meteo_pull_monitors(dataNoaaSub10[[Site]]$id[x],date_min = dateBgn, date_max = dateEnd)
+  return(dataTmp)
 })
-#Names of sites
-names(listData) <- dataNoaaSub10[[Site]]$id
+#Name lists with site IDs
+names(testData2) <- dataNoaaSub10[[Site]]$id
 
 #Plot the daily precip from the closest GHCND site
 ggplot2::qplot(as.POSIXct(testData$date), testData$prcp/10, main = "RNOAA closest site", xlab = "Date", ylab = "Daily precipitation")
 
 #plot NIWO data
 ggplot2::ggplot(dataSub, ggplot2::aes(startDateTime,priPrecipBulk)) + ggplot2::geom_point(ggplot2::aes(colour = factor(priPrecipFinalQF))) + ggplot2::ggtitle("NEON NIWO") + ggplot2::xlab("Time") + ggplot2::ylab("precipitation")
-
 
 #Grab date for summing precip totals
 dataSub$Date <- lubridate::date(dataSub$startDateTime)
@@ -279,3 +277,17 @@ tmp <- testData[testData$date %in% dfPrcpDaily$Date,]
 tmp2 <- dfPrcpDaily[dfPrcpDaily$Date %in% tmp$date,]
 
 
+
+
+#############################################################
+#Working with PRISM data
+###########################################################
+
+
+install.packages("prism")
+library(prism) ##prism data access
+
+#Set the data download path
+prism_set_dl_dir(path = "/home/ddurden/eddy/tmp/CLM/precip/")
+
+get_prism_dailys(type = "ppt", minDate = dateBgn, maxDate = dateEnd)
