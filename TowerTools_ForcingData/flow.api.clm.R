@@ -36,6 +36,7 @@ lapply(packReq, function(x) {
 
 #Install packages from github repos
 devtools::install_github("NEONScience/eddy4R/pack/eddy4R.base")
+devtools::install_github("NEONScience/eddy4R/pack/eddy4R.qaqc")
 
 #Setup Environment
 options(stringsAsFactors=F)
@@ -43,7 +44,7 @@ options(stringsAsFactors=F)
 ###############################################################################
 ##!Set options to local vs s3 and define S3 ENV variables
 ###############################################################################
-MethOut <- c("local", "s3", "gcs")[3] # CHANGE ME FOR DESIRED CONFIGURATION
+MethOut <- c("local", "gcs")[2] # CHANGE ME FOR DESIRED CONFIGURATION
 
 if(MethOut == "gcs"){
 
@@ -51,12 +52,16 @@ if(MethOut == "gcs"){
 buck = "neon-ncar"
 
 # Setting up environment
-Sys.setenv(#"AWS_ACCESS_KEY_ID" = buck,
-  #"AWS_SECRET_ACCESS_KEY" = keyS3,
-  #"AWS_S3_ENDPOINT" = "neonscience.org",
-  #"AWS_DEFAULT_REGION" = "s3.data",
+Sys.setenv(
+  #Set ENV variables
+"GCSPATHUPLDATM" = "NEON/atm/cdeps/v2",
+"GCSPATHUPLDEVAL" = "NEON/eval_files/v2",
   "GCS_AUTH_FILE" = "/home/ddurden/eddy/tmp/neon_ncar_writer.json"
 )
+
+#Grab needed ENV variable
+GcsPathUpldAtm <- base::Sys.getenv("GCSPATHUPLDATM")
+GcsPathUpldEval <- base::Sys.getenv("GCSPATHUPLDEVAL")
 
 gcsCred <- Sys.getenv("GCS_AUTH_FILE")
 
@@ -68,33 +73,12 @@ tryCatch({googleCloudStorageR::gcs_auth(json_file=gcsCred)},
 
 }#end method GCS
 
-if(MethOut == "s3"){
-  #S3 information
-  #Secret writing/deleting 
-  #keyS3 <- readRDS("home/ddurden/eddy/tmp/ncar_writer_key.RDS")
-  #Set ENV variables
-  base::Sys.setenv("S3PATHUPLDATM" = "NEON/atm/cdeps/v2")
-  base::Sys.setenv("S3PATHUPLDEVAL" = "NEON/eval_files/v2")
-  base::Sys.setenv("NEON_S3_ACCESS_KEY_ID" = "neon-ncar-writer")
-  base::Sys.setenv("NEON_S3_SECRET_KEY" = "Xq6pzt19bhw9EHjdYgffB1oTypVhNU6/2mbp7Z6o")
-  base::Sys.setenv("NEON_S3_ENDPOINT" = "s3.data.neonscience.org")
-  base::Sys.setenv("NEON_S3_OUTPUT_BUCKET" = "neon-ncar")
-  
-  #Grab needed ENV variable
-  S3PathUpldAtm <- base::Sys.getenv("S3PATHUPLDATM")
-  S3PathUpldEval <- base::Sys.getenv("S3PATHUPLDEVAL")
-  
-  # Setting up environment
-  Sys.setenv("AWS_ACCESS_KEY_ID" = "neon-ncar-writer",
-             "AWS_SECRET_ACCESS_KEY" = "Xq6pzt19bhw9EHjdYgffB1oTypVhNU6/2mbp7Z6o",
-             "AWS_S3_ENDPOINT" = "neonscience.org",
-             "AWS_DEFAULT_REGION" = "s3.data")
-}
+
 ##############################################################################
 ##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "CPER"
+Site <- "SOAP"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -103,7 +87,7 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2022-03-31"
+dateEnd <- "2022-04-30"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
@@ -403,6 +387,9 @@ dataDfFlux$H[(which(dataDfFlux$qfTempAirSoni == 1|dataDfFlux$qfWS_MDS == 1))] <-
 dataDfFlux$Ustar[(which(dataDfFlux$qfUstar == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
 dataDfFlux$LE_NSAE[(which(dataDfFlux$qfTurbH2oFinl == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
 dataDfFlux$H_NSAE[(which(dataDfFlux$qfTempAirSoni == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
+dataDfFlux$WS_MDS[(which(dataDfFlux$qfWS_MDS == 1))] <- NaN
+dataDfFlux$tempAirSoni[(which(dataDfFlux$qfTempAirSoni == 1))] <- NaN
+dataDfFlux$tempAirTop[(which(dataDfFlux$qfTempAirTop== 1))] <- NaN
 #dataDfFlux$Pa_MDS[(which(dataDfFlux$qfTurbFlow == 1))] <- NaN
 
 #Set Rng thresholds
@@ -416,9 +403,8 @@ Rng$Min <- data.frame(
   "LE_NSAE" = -500,            #[W m-2]
   "H" = -500,             #[W m-2]
   "H_NSAE" = -500,             #[W m-2]
-  "USTAR" = 0,            #[m s-1]
+  "Ustar" = 0,            #[m s-1]
   "WS_MDS" = 0,         #[m s-1]
-  "WS_MAX_1_1_1" = 0,     #[m s-1]
   "tempAirSoni" = -55.0,       #[C]
   "tempAirTop" = -55.0       #[C]
 )
@@ -432,7 +418,7 @@ Rng$Max <- data.frame(
   "LE_NSAE" = 1000,            #[W m-2]
   "H" = 1000,             #[W m-2]
   "H_NSAE" = 1000,             #[W m-2]
-  "USTAR" = 5,            #[m s-1]
+  "Ustar" = 5,            #[m s-1]
   "WS_MDS" = 50,         #[m s-1]
   "tempAirSoni" = 45.0,       #[C]
   "tempAirTop" = 45.0       #[C]
@@ -457,6 +443,27 @@ for(idx in dfValiSub$Date){
   }
 }
 
+#List of variables to perform despiking on
+varDspk <- c("FC","NEE","LE","LE_NSAE","H","H_NSAE","Ustar","WS_MDS","tempAirSoni","tempAirTop")
+
+#Lapply to perform despiking for flux variables
+base::lapply(varDspk, function(y){
+  print(y)
+  #y <- "asrpCo2"
+  tmp <- eddy4R.qaqc::def.dspk.br86(
+    # input data, univariate vector of integers or numerics
+    dataInp = dataDfFlux[[y]],
+    # filter width
+    WndwFilt = 9, #Default
+    # initial number/step size of histogram bins
+    NumBin = 2, #Default
+    # resolution threshold
+    ThshReso = 10 #Default
+  ) #Remove high frequency data that is flagged by sensor specific flags or plausibility tests flags
+  
+  dataDfFlux[[y]] <<- tmp$dataOut
+  #return(tmp)
+})  #End lapply for variables
 
 #Remove flagging variables from output
 dataDfFlux$qfTurbCo2Finl <- NULL
@@ -486,7 +493,7 @@ base::file.remove(base::list.files(DirDnld, full.names = TRUE, recursive = TRUE)
 listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001", "TBOT" = "DP1.00003.001", "PAR" = "DP1.00024.001", "SW_DIR" = "DP1.00014.001", "WS_MDS" = "DP1.00001.001")
 
 #names for individual variables of interest
-varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min", "PAR" = "PARPAR_30min", "SW_DIR" = "SRDDP_30min", "WS_MDS" = "2DWSD_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
+varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min", "PAR" = "PARPAR_30min", "SW_DIR" = "SRDDP_30min", "WS_MDS" = "twoDWSD_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
 
 #Sub data product variables
 subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inLWMean", "Rg" = "inSWMean", "Pa_MDS" = "staPresMean", "TBOT" = "tempTripleMean", "PAR" = "PARMean", "SW_DIR" = "gloRadMean", "WS_MDS" = "windSpeedMean")
@@ -667,7 +674,7 @@ lapply(nameQfVar, function(x){
   #x <- nameQfVar[1]#for testing
   lapply(names(dataGf[[x]]), function(y){
     #y <- "Tair_002" #for testing
-    if(Site %in% c("CLBJ","DELA") & y == "Pa_MDS_002"){
+    if(Site %in% c("DELA") & y == "Pa_MDS_002"){
       dataGf[[x]][which(dataGf[[x]][[y]] > 110|dataGf[[x]][[y]] < 80),y]  <<- NaN
     } else if (Site %in% c("RMNP") & y == "Pa_MDS_002"){
       dataGf[[x]][which(dataGf[[x]][[y]] > 90|dataGf[[x]][[y]] < 70),y]  <<- NaN
@@ -684,7 +691,7 @@ rpt <- list()
 #Run Replicate stream gap-filling function
 rpt <- lapply(names(dataGf), function(x){
   #x <- "Tair" #For testing
- def.gf.rep(dataGf = dataGf[[x]], NameVarGf = names(dataGf[[x]])[1], NameVarRep = names(dataGf[[x]])[-1])
+ NEON.gf::def.gf.rep(dataGf = dataGf[[x]], NameVarGf = names(dataGf[[x]])[1], NameVarRep = names(dataGf[[x]])[-1])
 }) #End lapply around gap-fill function
 
 #Add names to list of data.frames
@@ -789,6 +796,7 @@ EddyProc.C$sSetLocationInfo(LatDeg=latSite, LongDeg=metaSite$LonTow, TimeZoneHou
 
 #+++ Fill gaps in variables with MDS gap filling algorithm (without prior ustar filtering)
 EddyProc.C$sMDSGapFill('NEE', FillAll=TRUE) #Fill all values to estimate flux uncertainties
+EddyProc.C$sMDSGapFill('FC', FillAll=TRUE)
 EddyProc.C$sMDSGapFill('LE', FillAll=TRUE)
 EddyProc.C$sMDSGapFill('H', FillAll=TRUE)
 EddyProc.C$sMDSGapFill('Ustar', FillAll=TRUE)
@@ -839,12 +847,12 @@ ifelse(is.na(qfClm[[x]])& x %in% names(qfGfMet), qfGfMet[[x]], qfClm[[x]])
 names(qfClm) <- nameQfClm
 
 #Change names to match CLM data output
-names(qfClm) <- str_remove(names(qfClm), '_MDS')
-names(qfClm) <- str_replace(names(qfClm), 'Tair','TBOT')
-names(qfClm) <- str_replace(names(qfClm),'WS','WIND')
-names(qfClm) <- str_replace(names(qfClm),'rH','RH')
-names(qfClm) <- str_replace(names(qfClm),'Pa','PSRF')
-names(qfClm) <- str_replace(names(qfClm),'Rg','FSDS')
+names(qfClm) <- stringr::str_remove(names(qfClm), '_MDS')
+names(qfClm) <- stringr::str_replace(names(qfClm), 'Tair','TBOT')
+names(qfClm) <- stringr::str_replace(names(qfClm),'WS','WIND')
+names(qfClm) <- stringr::str_replace(names(qfClm),'rH','RH')
+names(qfClm) <- stringr::str_replace(names(qfClm),'Pa','PSRF')
+names(qfClm) <- stringr::str_replace(names(qfClm),'Rg','FSDS')
 
 #numeric flags
 qfGfClm <- as.data.frame(qfClm)
@@ -871,13 +879,13 @@ qfGfClm <- as.data.frame(sapply(qfGfClm,as.numeric))
 dataClm$DateTime <- EddyDataWithPosix.F$DateTime - lubridate::minutes(30) # putting back to time at the beginning of the measurement period
 
 #Changing data variable names
-names(dataClm) <- str_remove(names(dataClm), '_f')
-names(dataClm) <- str_remove(names(dataClm), '_MDS')
-names(dataClm) <- str_replace(names(dataClm), 'Tair','TBOT')
-names(dataClm) <- str_replace(names(dataClm),'WS','WIND')
-names(dataClm) <- str_replace(names(dataClm),'rH','RH')
-names(dataClm) <- str_replace(names(dataClm),'Pa','PSRF')
-names(dataClm) <- str_replace(names(dataClm),'Rg','FSDS')
+names(dataClm) <- stringr::str_remove(names(dataClm), '_f')
+names(dataClm) <- stringr::str_remove(names(dataClm), '_MDS')
+names(dataClm) <- stringr::str_replace(names(dataClm), 'Tair','TBOT')
+names(dataClm) <- stringr::str_replace(names(dataClm),'WS','WIND')
+names(dataClm) <- stringr::str_replace(names(dataClm),'rH','RH')
+names(dataClm) <- stringr::str_replace(names(dataClm),'Pa','PSRF')
+names(dataClm) <- stringr::str_replace(names(dataClm),'Rg','FSDS')
 names(dataClm)
 
 #Convert degC to K for temperature
@@ -895,7 +903,7 @@ attributes(obj = dataClm$ZBOT)$units <- "m"
 #Year month combination for data filtering
 dataClm$yearMon <- strftime(dataClm$DateTime, "%Y-%m", tz='UTC')
 
-dataClm <- cbind(dataClm,EvalDataUnfilled[,c("RadDif","RadDir","qfNEE", "FC", "qfFC", "qfLE", "LE_NSAE", "qfLE_NSAE", "qfUstar", "qfH", "H_NSAE", "qfH_NSAE")])
+dataClm <- cbind(dataClm,EvalDataUnfilled[,c("RadDif","RadDir","qfNEE", "qfFC", "qfLE", "LE_NSAE", "qfLE_NSAE", "qfUstar", "qfH", "H_NSAE", "qfH_NSAE")])
 
 #Combine data with qap-filling quality flags
 dataClm <- cbind(dataClm, qfGfClm)
@@ -1168,25 +1176,21 @@ remove(time, timeStep, fileOutAtm, fileOutEval, ncAtm, ncEval, Data.mon,
 ##!Output to S3
 ###############################################################################
 #Should data be written out to S3
-if(MethOut == "s3"){
+if(MethOut == "gcs"){
   #Grab all output files names
   fileOutAtm <- base::list.files(path = DirOutAtm, pattern = ".nc")
   fileOutEval <- base::list.files(path = DirOutEval, pattern = ".nc")
   
-  S3PathUpldAtm <- paste0(S3PathUpldAtm,"/",Site)
-  S3PathUpldEval <- paste0(S3PathUpldEval,"/",Site)
+  GcsPathUpldAtm <- paste0(GcsPathUpldAtm,"/",Site)
+  GcsPathUpldEval <- paste0(GcsPathUpldEval,"/",Site)
   
   #Upload Atm files to S3
   lapply(fileOutAtm, function(x){
    # x <- fileOutAtm[1] #for testing
     print(x)
     #Function to upload to ECS
-    aws.s3::put_object(file = paste0(DirOutAtm,"/",x),
-      object = paste0(S3PathUpldAtm,"/",x),
-      bucket = "neon-ncar"
-      # region = "s3",
-      # check_region = FALSE
-    )
+    googleCloudStorageR::gcs_upload(file = paste0(DirOutAtm,"/",x), name=paste0(GcsPathUpldAtm,"/",x), bucket=buck, predefinedAcl="bucketLevel")
+
   })
   
   #Upload Atm files to S3
@@ -1199,19 +1203,17 @@ if(MethOut == "s3"){
   #     s3filename = x,
   #     filename = x
   #   ) 
-  # })#End lapply for writing data out to S3
+  # })#End lapply for writing data out to GCS
   
-    #Upload Eval files to S3
+    #Upload Eval files to GCS
     lapply(fileOutEval, function(x){
       print(x)
       #Function to upload to ECS
-      aws.s3::put_object(file = paste0(DirOutEval,"/",x),
-                         object = paste0(S3PathUpldEval,"/",x),
-                         bucket = "neon-ncar"
-      )#End aws put object
-  })#End lapply for writing data out to S3
+      googleCloudStorageR::gcs_upload(file = paste0(DirOutEval,"/",x), name=paste0(GcsPathUpldEval,"/",x), bucket=buck, predefinedAcl="bucketLevel")
+      
+  })#End lapply for writing data out to GCS
   
-} #End if statement to write to S3
+} #End if statement to write to GCS
 
 ##############################################################################
 ##!Plot input data
@@ -1310,18 +1312,16 @@ dev.off()#close plotting device
 #gg_miss_var(dataClm, show_pct = TRUE)
 
 #Output diagnostic plots to S3
-if(MethOut == "s3"){
+if(MethOut == "gcs"){
   #Grab all output files names
   fileOutDiag<- base::list.files(path = DirOut, pattern = ".pdf")
   
   #Upload Atm files to S3
   lapply(fileOutDiag, function(x){
     print(x)
-    #Function to upload to ECS
-    aws.s3::put_object(file = paste0(DirOut,"/",x),
-                       object = paste0(S3PathUpldAtm,"/",x),
-                       bucket = "neon-ncar"
-    ) #end s3 put funciton
+    #Upload plots to GCS
+    googleCloudStorageR::gcs_upload(file = paste0(DirOut,"/",x), name=paste0(GcsPathUpldAtm,"/",x), bucket=buck, predefinedAcl="bucketLevel")
+
   })#End lapply for writing data out to S3
   
 } #End if statement to write diagnostic plots to S3
