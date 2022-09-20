@@ -24,7 +24,13 @@ from bokeh.layouts import row,column
 from bokeh.models import HoverTool
 from bokeh.plotting import figure, show
 
+from glob import glob
+
+#import time
+
 warnings.simplefilter("ignore") 
+
+nchunks = 200
 
 def rmse(predictions, targets):
     return np.sqrt(((predictions - targets) ** 2).mean())
@@ -115,7 +121,7 @@ df_list =[]
 freq_list = ['all','hourly','daily','monthly']
 
 
-def get_data (var, freq, this_site, date):
+def get_data (var, freq, this_site, date, clmchunks, neonchunks):
 
     month = date[0:7]
 
@@ -123,28 +129,47 @@ def get_data (var, freq, this_site, date):
     client = storage.Client()
 
     # get CLM data
-#    json_list = sorted(glob("./jsons-gcs/" + this_site + ".transient*" + month + "*.json"))
+#    json_list = sorted(glob("./data/jsons-gcs-monthly/" + this_site + ".transient*" + month + "*.json"))
+#    start = time.time()
+#    overallstart = start
     json_list = client.list_blobs('neon-ncar-dev', prefix='jsons-gcs-monthly/'+this_site+".transient.clm2.h1."+month)
     m_list = []
     for js in tqdm(json_list):
 #      with open(js) as f:
        with gcs_file_system.open("gs://neon-ncar-dev/" + js.name) as f:
         m_list.append(fsspec.get_mapper("reference://", fo=ujson.load(f)))
-    ds_clm = xr.open_mfdataset(m_list, combine='by_coords', engine='zarr', coords='minimal', data_vars='minimal', compat='override', decode_times=True, parallel=True)
+    ds_clm = xr.open_mfdataset(m_list, combine='by_coords', engine='zarr', coords='minimal', data_vars='minimal', compat='override', decode_times=True, parallel=True, chunks={"time": clmchunks})
+#    print("Time to open CLM = " + str(time.time() - start))
+#    ds_clm = xr.open_mfdataset(m_list, combine='by_coords', engine='zarr', coords='minimal', data_vars='minimal', compat='override', decode_times=True, parallel=True)
+
+    # fs = fsspec.filesystem(
+    #     "reference", 
+    #     fo="./data/combinedgcs.json", 
+    #     skip_instance_cache=True
+    # )
+    # m = fs.get_mapper("")
+    # ds_clm = xr.open_dataset(m, engine='zarr', decode_times=True)   
 
     # get NEON data
 #    json_list = sorted(glob("./jsons-gcs/" + this_site + "_eval*" + month + "*.json"))
+#    start = time.time()
     json_list = client.list_blobs('neon-ncar-dev', prefix='jsons-gcs-monthly/'+this_site+"_eval_"+month)
     m_list = []
     for js in tqdm(json_list):
       with gcs_file_system.open("gs://neon-ncar-dev/" + js.name) as f:
         m_list.append(fsspec.get_mapper("reference://", fo=ujson.load(f)))
-    ds_neon = xr.open_mfdataset(m_list, combine='by_coords', engine='zarr', decode_times=True)   
+    ds_neon = xr.open_mfdataset(m_list, combine='by_coords', engine='zarr', decode_times=True, chunks={"time": neonchunks})   
+#    ds_neon = xr.open_dataset(m_list[0], engine='zarr', decode_times=True, chunks={"time": neonchunks})  
+#    print("Time to open NEON = " + str(time.time() - start))
 
+#    start = time.time()
     # convert values
     if (var == 'EFLX_LH_TOT'):
         neon_data = np.ravel(ds_neon[var])
         clm_data = np.ravel(ds_clm['FCEV'] + ds_clm['FCTR'] + ds_clm['FGEV'])
+#        endtime = time.time()
+#        print("Time to calculate EFLX = " + str(endtime - start))
+#        print("Overall time = " + str(endtime - overallstart))
     elif (var == 'Rnet'):
         neon_data = np.ravel(ds_neon[var])
         clm_data = np.ravel(ds_clm['FSA'] - ds_clm['FIRA'])
@@ -160,7 +185,7 @@ def get_data (var, freq, this_site, date):
     else:
         neon_data = np.ravel(ds_neon[var])
         clm_data = np.ravel(ds_clm[var])
-    
+
     df_new = pd.DataFrame({'time':ds_clm['time'],'NEON':neon_data,'CLM':clm_data})
 
     df_new['year'] = df_new['time'].dt.year
@@ -202,7 +227,15 @@ def simple_tseries_sync_stat(doc):
     default_var = 'EFLX_LH_TOT'
     default_date = '2018-12-01'
     default_var_desc = "Latent Heat Flux [W/m2]"
-    df_new = get_data(default_var,default_freq,default_site, default_date)
+    df_new = get_data(default_var,default_freq,default_site, default_date, nchunks, nchunks)
+
+    # chunksarr = [100, 200]
+    # for clmchunks in chunksarr:
+    #     for neonchunks in chunksarr:
+    #         print("-----")
+    #         print("CLM chunks = " + str(clmchunks) + "    NEON chunks = " + str(neonchunks))
+    #         get_data(default_var,default_freq,default_site, default_date, clmchunks, neonchunks)
+
     source = ColumnDataSource(df_new)
 
     #-- what are tools options
@@ -327,7 +360,7 @@ def simple_tseries_sync_stat(doc):
 
     def load_data():
 
-        df_new = get_data(menu.value, menu_freq.value, menu_site.value, date_picker.value)
+        df_new = get_data(menu.value, menu_freq.value, menu_site.value, date_picker.value, nchunks, nchunks)
         update_stats(df_new)
         source.data =df_new
         p.title.text = "Time-Series Plot for Neon Site : " +menu_site.value
@@ -367,7 +400,7 @@ def simple_tseries_sync_stat(doc):
 
     def selection_change(attrname, old, new):
         print ("calling dsjkghkjasdhgkjads")
-        df_new = get_data(menu.value, menu_freq.value, menu_site.value, date_picker.value)
+        df_new = get_data(menu.value, menu_freq.value, menu_site.value, date_picker.value, nchunks, nchunks)
         selected = source.selected.indices
         if selected:
             df_new = df_new.iloc[selected, :]
