@@ -78,7 +78,7 @@ tryCatch({googleCloudStorageR::gcs_auth(json_file=gcsCred)},
 ##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "SOAP"
+Site <- "PUUM"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -151,11 +151,10 @@ dateEnd <- as.Date(dateEnd)
 listObjGcs <- googleCloudStorageR::gcs_list_objects(bucket = buck, prefix = "NEON/qfVali/")$name
 
 #Filename for flux QFQM
-fileObjValiGcs <- paste0("NEON/qfVali/",Site,"_2017-2022.rds")
-
+fileObjValiGcs <- grep(Site, listObjGcs, value = TRUE)
 
 #Check if data is available in GCS for the current year
-logiDataGcs <-fileObjValiGcs %in% listObjGcs
+logiDataGcs <- any(grepl(Site, listObjGcs))
 
 #Check if object exists
 #logiDataS3 <- aws.s3::object_exists(object = paste0("qfqm_flux_shiny/v20210104/",Site,"/", Site,"_",lubridate::year(dateEnd),".rds"), bucket = s3Buck)
@@ -166,7 +165,7 @@ if(logiDataGcs == TRUE){
   
   #temporary directory and local file name
   DirTmp <- tempdir() 
-  fileObjValiLocl <- paste0(DirTmp,"/", Site,"_2017-2022.rds")
+  fileObjValiLocl <- paste0(DirTmp,"/", Site,"_qfVali.rds")
   
   #Read in data currently formatted and stored in S3
   googleCloudStorageR::gcs_get_object(object = fileObjValiGcs, bucket = buck, saveToDisk = fileObjValiLocl, overwrite = TRUE)
@@ -538,8 +537,8 @@ dataMetSub$Rg_002 <- dataMetSub$Rg[!dataMetSub$Rg$verticalPosition == IdVer,]
 dataMetSub$Rg <- dataMetSub$Rg[dataMetSub$Rg$verticalPosition == IdVer,]
 dataMetSub$FLDS_MDS_002 <- dataMetSub$FLDS_MDS[!dataMetSub$FLDS_MDS$verticalPosition == IdVer,]
 dataMetSub$FLDS_MDS <- dataMetSub$FLDS_MDS[dataMetSub$FLDS_MDS$verticalPosition == IdVer,]
-dataMetSub$rH_002 <- dataMetSub$rH[!dataMetSub$rH$horizontalPosition == "003",]
-dataMetSub$rH <- dataMetSub$rH[dataMetSub$rH$horizontalPosition == "003",]
+dataMetSub$rH_002 <- dataMetSub$rH[!dataMetSub$rH$horizontalPosition == "003",] #tower top rH
+dataMetSub$rH <- dataMetSub$rH[dataMetSub$rH$horizontalPosition == "003"|dataMetSub$rH$horizontalPosition == "002",] #soil plot rH, added 002 for PUUM
 
 dataMetSub$PAR <- dataMetSub$PAR[dataMetSub$PAR$verticalPosition == IdVer,]
 
@@ -826,6 +825,10 @@ dataClm <- FilledEddyData.F[,grep(pattern = "_f$", x = names(FilledEddyData.F))]
 qfClm <- FilledEddyData.F[,grep(pattern = "_fqc$", x = names(FilledEddyData.F))]
 #Changing gap-filling qf variable names
 #names(qfClm) <- str_remove(names(qfClm), '_fqc')
+if(!"GPP_f" %in% names(dataClm)) {
+  dataClm$GPP_f <- rep(NaN, nrow(dataClm))
+  qfClm$GPP_fqc <- rep(0, nrow(qfClm))
+}
 
 #Creating character vector of gap-filling methods used from ReddyProc
 qfClm[qfClm == 1] <- "ReddyProc_methA"
