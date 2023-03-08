@@ -3,7 +3,7 @@ steps:
   - name: "gcr.io/cloud-builders/docker"
     args: ["build", 
            "--tag=${LOCATION}-docker.pkg.dev/$PROJECT_ID/${_IMAGE}",
-           "."]
+           "${PATH}"]
   # Push the container image to the registry
   - name: "gcr.io/cloud-builders/docker"
     args: ["push", "${LOCATION}-docker.pkg.dev/$PROJECT_ID/${_IMAGE}"]
@@ -28,6 +28,7 @@ steps:
         "HOST=${_HOST}"
       ]
 substitutions:
+  _PATH: path
   _IMAGE: image
   _SERVICE: service
   _HOST: host
