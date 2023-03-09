@@ -15,6 +15,8 @@ steps:
         "services",
         "update",
         "${_SERVICE}",
+        "--region",
+        "${LOCATION}",
         "--cpu-boost"
       ]  
   # Deploy to Cloud Run
