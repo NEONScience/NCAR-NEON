@@ -17,6 +17,8 @@ steps:
         "${LOCATION}-docker.pkg.dev/$PROJECT_ID/${_IMAGE}",
         "--memory",
         "2Gi",
+        "--min-instances",
+        "1",
         "--concurrency",
         "80",
         "--region",
