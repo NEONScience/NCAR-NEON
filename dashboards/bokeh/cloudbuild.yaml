@@ -48,3 +48,5 @@ substitutions:
   _HOST: host
 images:
   - "${LOCATION}-docker.pkg.dev/$PROJECT_ID/${_IMAGE}"
+options:
+  machineType: 'E2_HIGHCPU_8'
