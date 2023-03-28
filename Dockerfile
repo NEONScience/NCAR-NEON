@@ -1,6 +1,6 @@
 # start with the ropensci image including debian:testing, r-base, rocker/rstudio, rocker/hadleyverse
 # https://hub.docker.com/r/rocker/ropensci/
-FROM quay.io/battelleecology/rstudio:3.6.1
+FROM quay.io/battelleecology/rstudio:4.0.5
 #
 WORKDIR /home/NCAR-NEON
 # copy clone of GitHub source repo "NEONScience/NEON-FIU-algorithm" to the Docker image
@@ -18,12 +18,11 @@ ENV MAKEFLAGS='-j3'
     && RUNDEPS="libudunits2-dev \
             udunits-bin \
             hdf5-helpers \
-            libhdf5-cpp-100 \
-            libnetcdf11 \
-            libhdf5-100 \
+            libhdf5-cpp-103 \
+            libhdf5-103 \
             libsz2 \
-            #libmysql++3v5 \
-            #libmariadbclient18 \
+            libmysql++3v5 \
+            libmariadb3 \
             libpng-tools \
             libproj-dev \
 			      libssl-dev \
@@ -36,27 +35,30 @@ ENV MAKEFLAGS='-j3'
             libxml2-dev" \
             #mysql-common" \
             #fftw3\
+            #libnetcdf11 \
     && BUILDDEPS="libhdf5-dev \
                   libjpeg-dev \
                  libtiff5-dev \
                  libpng-dev \
+                 " \
                  #libmysql++-dev \
                  #fftw3-dev \
-                 " \
+                 
     && apt-get install -y $BUILDDEPS $RUNDEPS \
 
     # Installing R package dependencies that are only workflow related (including CI combiner)
-    && install2.r --error --repos "https://cran.rstudio.com/"\
+    && install2.r --error --repos "https://mran.microsoft.com/snapshot/2021-05-17"\ 
+    #"https://cran.rstudio.com/"\
+    devtools \
     BiocManager \
     REddyProc \
     ncdf4 \
-    devtools \
     reshape2 \
     ggplot2 \
     gridExtra \
-    tidyverse \
+    #tidyverse \
     naniar \
-    aws.s3 \
+    #aws.s3 \
     neonUtilities \
     googleCloudStorageR \
     
