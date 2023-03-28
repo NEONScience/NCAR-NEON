@@ -33,7 +33,8 @@ site <- "NIWO"
 TypeFile <- c("atm/cdeps", "surf_files", "eval_files")[2]
 
 #Adding version number to s3 path
-versData <- c("v1")
+versData <- c("v1","v2")[2]
+versDataSurf <- "v1"
 
 #Base directory for downloading data
 DirDnldBase <- "~/eddy/data/CLM/dnld"
@@ -53,17 +54,19 @@ PrdWndwDnld <- strftime(DateSeq, format = "%Y-%m")
 
 #logical statement about type of files
 if(TypeFile == "surf_files"){
-  urlDnld <- paste0("https://storage.neonscience.org/neon-ncar/NEON/",TypeFile,"/",versData,"/",site,"_surfaceData.csv")
+  urlDnld <- paste0("https://storage.neonscience.org/neon-ncar/NEON/",TypeFile,"/",versDataSurf,"/",site,"_surfaceData.csv")
   
   #Download filename (full path)
   fileDnld <- paste0(DirDnld,"/",site,"_",versData,"_surfaceData.csv")
 } else
   {
+    
+    #Removing extra nesting used by CLM for atm files
+    TypeFileDnld <- unlist(strsplit(TypeFile, "/|_"))[1]
+    
   #Create URL for data files
-  urlDnld <- paste0("https://storage.neonscience.org/neon-ncar/NEON/",TypeFile,"/",versData,"/",site,"/",PrdWndwDnld,".nc")
+  urlDnld <- paste0("https://storage.neonscience.org/neon-ncar/NEON/",TypeFile,"/",versData,"/",site,"/",site,"_",ifelse(TypeFile == "atm/cdeps",TypeFileDnld,TypeFile),"_",PrdWndwDnld,".nc")
   
-  #Removing extra nesting used by CLM for atm files
-  TypeFileDnld <- unlist(strsplit(TypeFile, "/|_"))[1]
   
   #Download filename (full path)
   fileDnld <-  paste0(DirDnld,"/",site,"_",TypeFileDnld,"_",versData,"_",PrdWndwDnld,".nc") 

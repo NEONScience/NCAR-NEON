@@ -1,6 +1,8 @@
 # start with the ropensci image including debian:testing, r-base, rocker/rstudio, rocker/hadleyverse
 # https://hub.docker.com/r/rocker/ropensci/
-FROM quay.io/battelleecology/rstudio:3.6.1
+
+FROM quay.io/battelleecology/rstudio:4.0.5
+#
 
 LABEL org.label-schema.license="AGPL-3.0" \
       org.label-schema.vcs-url="https://github.com/NEONScience/NCAR-NEON" \
@@ -38,12 +40,11 @@ ENV MAKEFLAGS='-j3'
     && RUNDEPS="libudunits2-dev \
             udunits-bin \
             hdf5-helpers \
-            libhdf5-cpp-100 \
-            libnetcdf11 \
-            libhdf5-100 \
+            libhdf5-cpp-103 \
+            libhdf5-103 \
             libsz2 \
-            #libmysql++3v5 \
-            #libmariadbclient18 \
+            libmysql++3v5 \
+            libmariadb3 \
             libpng-tools \
             libproj-dev \
 			      libssl-dev \
@@ -56,32 +57,37 @@ ENV MAKEFLAGS='-j3'
             libxml2-dev" \
             #mysql-common" \
             #fftw3\
+            #libnetcdf11 \
     && BUILDDEPS="libhdf5-dev \
                   libjpeg-dev \
                  libtiff5-dev \
                  libpng-dev \
+                 " \
                  #libmysql++-dev \
                  #fftw3-dev \
-                 " \
+                 
     && apt-get install -y $BUILDDEPS $RUNDEPS \
 
     # Installing R package dependencies that are only workflow related (including CI combiner)
-    && install2.r --error --repos "https://cran.rstudio.com/"\
+    && install2.r --error --repos "https://mran.microsoft.com/snapshot/2021-05-17"\ 
+    #"https://cran.rstudio.com/"\
+    devtools \
     BiocManager \
     REddyProc \
     ncdf4 \
-    devtools \
     reshape2 \
     ggplot2 \
     gridExtra \
-    tidyverse \
+    #tidyverse \
     naniar \
-    Rfast \
-    aws.s3 \
+    #aws.s3 \
     neonUtilities \
+    googleCloudStorageR \
     
      ## from bioconductor
     && R -e "BiocManager::install('rhdf5', update=FALSE, ask=FALSE)" \
+    
+    && R -e "install.packages('Rfast')" \
     #Install packages from github repos
    # && R -e "devtools::install_github('NEONScience/eddy4R/pack/eddy4R.base')" \
     && R -e "devtools::install(pkg = 'gapFilling/pack/NEON.gf', dependencies=TRUE, upgrade = TRUE)" \
