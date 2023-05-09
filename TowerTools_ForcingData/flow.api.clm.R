@@ -21,10 +21,9 @@
 ##!Dependencies
 #############################################################
 
-
+#devtools::install("rlang@1.0.6")
 #Call the R HDF5 Library
-packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools",'reshape2',
-             'ggplot2','tidyverse','gridExtra','knitr','naniar', "Rfast", "aws.s3", "neonUtilities")
+packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools","reshape2","ggplot2","gridExtra","knitr","naniar", "Rfast", "aws.s3", "neonUtilities", "tidyverse")
 
 #Install and load all required packages
 lapply(packReq, function(x) {
@@ -54,8 +53,8 @@ buck = "neon-ncar"
 # Setting up environment
 Sys.setenv(
   #Set ENV variables
-"GCSPATHUPLDATM" = "NEON/atm/cdeps/v2",
-"GCSPATHUPLDEVAL" = "NEON/eval_files/v2",
+"GCSPATHUPLDATM" = "NEON/atm/cdeps/v3",
+"GCSPATHUPLDEVAL" = "NEON/eval_files/v3",
   "GCS_AUTH_FILE" = "/home/ddurden/eddy/tmp/neon_ncar_writer.json"
 )
 
@@ -78,7 +77,7 @@ tryCatch({googleCloudStorageR::gcs_auth(json_file=gcsCred)},
 ##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "PUUM"
+Site <- "BONA"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -87,7 +86,7 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2022-04-30"
+dateEnd <- "2023-02-28"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
@@ -430,7 +429,7 @@ lapply(names(dataDfFlux), function(x) {
 
 #Remove bad validation data for CO2 fluxes
 for(idx in dfValiSub$Date){
-  #idx <- dfValiSub$Date[1]
+  #idx <- dfValiSub$Date[321]
   #test[idx]
   tmpIdx <- which(as.Date(dataDfFlux$TIMESTAMP) == idx)
   if(dfValiSub[dfValiSub$Date == idx, "qfVali"] == 1){
@@ -506,6 +505,7 @@ subVarQf <- c("PRECTmms_MDS" = "secPrecipFinalQF", "rH" = "RHFinalQF", "FLDS_MDS
 
 ##Grab data for data products using Noble package
 dataMet <- lapply(listDpNum, function(x){
+  #x <- listDpNum[9]
   try(expr = neonUtilities::loadByProduct(site = Site, dpID = x, 
                                           startdate = as.character(dateBgn), 
                                           enddate = as.character(dateEnd), 
