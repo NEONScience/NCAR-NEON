@@ -77,7 +77,7 @@ tryCatch({googleCloudStorageR::gcs_auth(json_file=gcsCred)},
 ##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "BONA"
+Site <- "ABBY"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
