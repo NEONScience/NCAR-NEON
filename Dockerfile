@@ -47,7 +47,7 @@ ENV MAKEFLAGS='-j3'
     && apt-get install -y $BUILDDEPS $RUNDEPS \
 
     # Installing R package dependencies that are only workflow related (including CI combiner)
-    && install2.r --error --repos "https://mran.microsoft.com/snapshot/2021-05-17"\ 
+    && install2.r --error --repos "https://packagemanager.rstudio.com/cran/__linux__/focal/2021-05-17" \ 
     #"https://cran.rstudio.com/"\
     devtools \
     BiocManager \
