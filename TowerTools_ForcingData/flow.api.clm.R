@@ -23,7 +23,7 @@
 
 #devtools::install("rlang@1.0.6")
 #Call the R HDF5 Library
-packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools","reshape2","ggplot2","gridExtra","knitr","naniar", "Rfast", "aws.s3", "neonUtilities", "tidyverse")
+packReq <- c("rhdf5", "REddyProc", "ncdf4", "devtools","reshape2","ggplot2","gridExtra","knitr","naniar", "Rfast", "neonUtilities", "googleCloudStorageR","dplyr")
 
 #Install and load all required packages
 lapply(packReq, function(x) {
@@ -32,6 +32,11 @@ lapply(packReq, function(x) {
     install.packages(x, dependencies=TRUE, repos='http://cran.rstudio.com/')
     library(x, character.only = TRUE)
   }})
+
+#update neonUtilities
+remove.packages("neonUtilities")
+install.packages("neonUtilities", repos ='http://cran.rstudio.com/')
+
 
 #Install packages from github repos
 devtools::install_github("NEONScience/eddy4R/pack/eddy4R.base")
@@ -86,7 +91,7 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2023-02-28"
+dateEnd <- "2023-09-30"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
@@ -146,36 +151,36 @@ dateEnd <- as.Date(dateEnd)
 ##!Flux data download
 ##############################################################################
 
-#Testing bucket listing
-listObjGcs <- googleCloudStorageR::gcs_list_objects(bucket = buck, prefix = "NEON/qfVali/")$name
-
-#Filename for flux QFQM
-fileObjValiGcs <- grep(Site, listObjGcs, value = TRUE)
-
-#Check if data is available in GCS for the current year
-logiDataGcs <- any(grepl(Site, listObjGcs))
+# #Testing bucket listing
+# listObjGcs <- googleCloudStorageR::gcs_list_objects(bucket = buck, prefix = "NEON/qfVali/")$name
+# 
+# #Filename for flux QFQM
+# fileObjValiGcs <- grep(Site, listObjGcs, value = TRUE)
+# 
+# #Check if data is available in GCS for the current year
+# logiDataGcs <- any(grepl(Site, listObjGcs))
 
 #Check if object exists
 #logiDataS3 <- aws.s3::object_exists(object = paste0("qfqm_flux_shiny/v20210104/",Site,"/", Site,"_",lubridate::year(dateEnd),".rds"), bucket = s3Buck)
 
-if(logiDataGcs == TRUE){
-  #Read in data currently formatted and stored in S3
-  #listDfIn <- aws.s3::s3readRDS(object = paste0("qfqm_flux_shiny/v20210104/",Site,"/", Site,"_",lubridate::year(dateEnd),".rds"), bucket = s3Buck)
-  
-  #temporary directory and local file name
-  DirTmp <- tempdir() 
-  fileObjValiLocl <- paste0(DirTmp,"/", Site,"_qfVali.rds")
-  
-  #Read in data currently formatted and stored in S3
-  googleCloudStorageR::gcs_get_object(object = fileObjValiGcs, bucket = buck, saveToDisk = fileObjValiLocl, overwrite = TRUE)
-  
-  #Read in data from local temp directory after download from GCS  
-  dfVali <- readRDS(file = fileObjValiLocl)
-  
-  #Subset down to data being processed
-  dfValiSub <- dfVali[as.Date(dfVali$Date) >= as.Date(dateBgn) + 1 & as.Date(dfVali$Date) <= as.Date(dateEnd),] 
-}
-
+# if(logiDataGcs == TRUE){
+#   #Read in data currently formatted and stored in S3
+#   #listDfIn <- aws.s3::s3readRDS(object = paste0("qfqm_flux_shiny/v20210104/",Site,"/", Site,"_",lubridate::year(dateEnd),".rds"), bucket = s3Buck)
+#   
+#   #temporary directory and local file name
+#   DirTmp <- tempdir() 
+#   fileObjValiLocl <- paste0(DirTmp,"/", Site,"_qfVali.rds")
+#   
+#   #Read in data currently formatted and stored in S3
+#   googleCloudStorageR::gcs_get_object(object = fileObjValiGcs, bucket = buck, saveToDisk = fileObjValiLocl, overwrite = TRUE)
+#   
+#   #Read in data from local temp directory after download from GCS  
+#   dfVali <- readRDS(file = fileObjValiLocl)
+#   
+#   #Subset down to data being processed
+#   dfValiSub <- dfVali[as.Date(dfVali$Date) >= as.Date(dateBgn) + 1 & as.Date(dfVali$Date) <= as.Date(dateEnd),] 
+# }
+# 
 
 ##############################################################################
 ##!Flux data download
@@ -239,7 +244,7 @@ dataList <- list()
     # Read in all data at one time
     dataList$dp04 <- neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), level = "dp04", avg = 30)
      
-    dp01Var <- c("rtioMoleDryH2o", "rtioMoleDryCo2", "veloXaxsYaxsErth","presAtm","tempAir","temp","frt00Samp")                                          
+    dp01Var <- c("rtioMoleDryH2o", "rtioMoleDryCo2", "veloXaxsYaxsErth","presAtm","tempAir","frt00Samp")                                          
                                                                                        
     dataList$dp01 <- lapply(dp01Var, function(x) {
       neonUtilities::stackEddy(filepath=paste0(DirDnld,"/filesToStack00200/"), 
@@ -276,9 +281,10 @@ dataList <- list()
       "presAtmBaro" = dataList$dp01$presAtm[[Site]][which(dataList$dp01$presAtm[[Site]]$verticalPosition == IdVer), "data.presBaro.presAtm.mean"],
       "qfPresAtmBaro" = dataList$dp01$presAtm[[Site]][which(dataList$dp01$presAtm[[Site]]$verticalPosition == IdVer), "qfqm.presBaro.presAtm.qfFinl"],
       "tempAirSoni" = dataList$dp01$tempAir[[Site]][which(dataList$dp01$tempAir[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"], 
-      "qfTempAirSoni" = dataList$dp01$tempAir[[Site]][which(dataList$dp01$tempAir[[Site]]$verticalPosition == IdVer), "qfqm.soni.tempAir.qfFinl"],
-      "tempAirTop" = dataList$dp01$temp[[Site]][which(dataList$dp01$temp[[Site]]$verticalPosition == IdVer), "data.tempAirTop.temp.mean"],
-      "qfTempAirTop" = dataList$dp01$temp[[Site]][which(dataList$dp01$temp[[Site]]$verticalPosition == IdVer), "qfqm.tempAirTop.temp.qfFinl"]
+      "qfTempAirSoni" = dataList$dp01$tempAir[[Site]][which(dataList$dp01$tempAir[[Site]]$verticalPosition == IdVer), "qfqm.soni.tempAir.qfFinl"]#,
+      #"tempAirTop" = dataList$dp01$tempAirTop[[Site]][which(dataList$dp01$tempAirTop[[Site]]$verticalPosition == IdVer), "data.tempAirTop.temp.mean"],
+      #"qfTempAirTop" = dataList$dp01$tempAirTop[[Site]][which(dataList$dp01$tempAirTop[[Site]]$verticalPosition == IdVer), "qfqm.tempAirTop.temp.qfFinl"]
+     # "timeTempAirTop" = dataList$dp01$tempAirTop[[Site]][which(dataList$dp01$tempAirTop[[Site]]$verticalPosition == IdVer), "timeBgn"]
       , stringsAsFactors = FALSE)
 
     #Remove dataList to free up space
@@ -387,7 +393,7 @@ dataDfFlux$LE_NSAE[(which(dataDfFlux$qfTurbH2oFinl == 1|dataDfFlux$qfWS_MDS == 1
 dataDfFlux$H_NSAE[(which(dataDfFlux$qfTempAirSoni == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
 dataDfFlux$WS_MDS[(which(dataDfFlux$qfWS_MDS == 1))] <- NaN
 dataDfFlux$tempAirSoni[(which(dataDfFlux$qfTempAirSoni == 1))] <- NaN
-dataDfFlux$tempAirTop[(which(dataDfFlux$qfTempAirTop== 1))] <- NaN
+#dataDfFlux$tempAirTop[(which(dataDfFlux$qfTempAirTop== 1))] <- NaN
 #dataDfFlux$Pa_MDS[(which(dataDfFlux$qfTurbFlow == 1))] <- NaN
 
 #Set Rng thresholds
@@ -403,8 +409,8 @@ Rng$Min <- data.frame(
   "H_NSAE" = -500,             #[W m-2]
   "Ustar" = 0,            #[m s-1]
   "WS_MDS" = 0,         #[m s-1]
-  "tempAirSoni" = -55.0,       #[C]
-  "tempAirTop" = -55.0       #[C]
+  "tempAirSoni" = -55.0       #[C]
+ # "tempAirTop" = -55.0       #[C]
 )
 
 
@@ -418,8 +424,8 @@ Rng$Max <- data.frame(
   "H_NSAE" = 1000,             #[W m-2]
   "Ustar" = 5,            #[m s-1]
   "WS_MDS" = 50,         #[m s-1]
-  "tempAirSoni" = 45.0,       #[C]
-  "tempAirTop" = 45.0       #[C]
+  "tempAirSoni" = 45.0       #[C]
+#  "tempAirTop" = 45.0       #[C]
 )
 
 
@@ -428,21 +434,21 @@ lapply(names(dataDfFlux), function(x) {
   dataDfFlux[which(dataDfFlux[,x]<Rng$Min[[x]] | dataDfFlux[,x]>Rng$Max[[x]]),x] <<- NaN})
 
 #Remove bad validation data for CO2 fluxes
-for(idx in dfValiSub$Date){
-  #idx <- dfValiSub$Date[321]
-  #test[idx]
-  tmpIdx <- which(as.Date(dataDfFlux$TIMESTAMP) == idx)
-  if(dfValiSub[dfValiSub$Date == idx, "qfVali"] == 1){
-    print(idx)
-    print(tmpIdx)
-    dataDfFlux$NEE[tmpIdx] <- NaN
-    dataDfFlux$FC[tmpIdx] <- NaN
-    #dataDfFlux$NEE[test,] <- NaN
-  }
-}
+# for(idx in dfValiSub$Date){
+#   #idx <- dfValiSub$Date[321]
+#   #test[idx]
+#   tmpIdx <- which(as.Date(dataDfFlux$TIMESTAMP) == idx)
+#   if(dfValiSub[dfValiSub$Date == idx, "qfVali"] == 1){
+#     print(idx)
+#     print(tmpIdx)
+#     dataDfFlux$NEE[tmpIdx] <- NaN
+#     dataDfFlux$FC[tmpIdx] <- NaN
+#     #dataDfFlux$NEE[test,] <- NaN
+#   }
+# }
 
 #List of variables to perform despiking on
-varDspk <- c("FC","NEE","LE","LE_NSAE","H","H_NSAE","Ustar","WS_MDS","tempAirSoni","tempAirTop")
+varDspk <- c("FC","NEE","LE","LE_NSAE","H","H_NSAE","Ustar","WS_MDS","tempAirSoni")
 
 #Lapply to perform despiking for flux variables
 base::lapply(varDspk, function(y){
@@ -491,7 +497,7 @@ base::file.remove(base::list.files(DirDnld, full.names = TRUE, recursive = TRUE)
 listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001", "TBOT" = "DP1.00003.001", "PAR" = "DP1.00024.001", "SW_DIR" = "DP1.00014.001", "WS_MDS" = "DP1.00001.001")
 
 #names for individual variables of interest
-varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min", "PAR" = "PARPAR_30min", "SW_DIR" = "SRDDP_30min", "WS_MDS" = "twoDWSD_30min") #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
+varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min", "PAR" = "PARPAR_30min", "SW_DIR" = "SRDDP_30min", "WS_MDS" = "twoDWSD_30min")  #was twoDWSD_30min #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
 
 #Sub data product variables
 subVar <- c("PRECTmms_MDS" = "secPrecipBulk", "rH" = "RHMean", "FLDS_MDS" = "inLWMean", "Rg" = "inSWMean", "Pa_MDS" = "staPresMean", "TBOT" = "tempTripleMean", "PAR" = "PARMean", "SW_DIR" = "gloRadMean", "WS_MDS" = "windSpeedMean")
@@ -764,7 +770,7 @@ close(conFile)
 
 
 #  Dir.s <- paste(system.file(package='REddyProc'), 'examples', sep='/')
-EddyData.F <- fLoadTXTIntoDataframe(fileOut)
+EddyData.F <- REddyProc::fLoadTXTIntoDataframe(fileOut)
 
 #Threshold bounds to prevent rH > 100%
 EddyData.F$rH[EddyData.F$rH > 100] <- 100
@@ -809,6 +815,7 @@ EddyProc.C$sMDSGapFill('FLDS_MDS', FillAll=FALSE)
 EddyProc.C$sMDSGapFill('Rg', FillAll=FALSE) 
 EddyProc.C$sMDSGapFill('radNet', FillAll=FALSE) 
 EddyProc.C$sMRFluxPartition()
+EddyProc.C$sGLFluxPartition()
 # SCBI won't calculate GPP, unsure why?
 # KONZ won't calculate GPP, 
 #      "Detected following columns in dataset to be non numeric: FP_VARnight!"
@@ -819,7 +826,7 @@ EvalDataUnfilled <- EddyProc.C$sExportData()
 
 
 #Grab just the filled data products & rename variables
-dataClm <- FilledEddyData.F[,grep(pattern = "_f$", x = names(FilledEddyData.F))]
+dataClm <- FilledEddyData.F[,grep(pattern = "_f$|_DT$", x = names(FilledEddyData.F))]
 
 #Gap-filling flags from ReddyProc
 qfClm <- FilledEddyData.F[,grep(pattern = "_fqc$", x = names(FilledEddyData.F))]
@@ -984,9 +991,15 @@ FSH_NSAE  <- ncdf4::ncvar_def("FSH_NSAE", "Wm-2", list(lon,lat,time), mv,
                          longname="sensible heat flux net surface atmosphere exchange (turbulent + storage)", prec="double")
 EFLX_LH_TOT_NSAE  <- ncdf4::ncvar_def("EFLX_LH_TOT_NSAE", "Wm-2", list(lon,lat,time), mv, longname="latent heat flux net surface atmosphere exchange (turbulent + storage)", prec="double")
 GPP <- ncdf4::ncvar_def("GPP", "umolm-2s-1", list(lon,lat,time), mv,
-                        longname="gross primary productivity", prec="double")
+                        longname="gross primary productivity calculated using nighttime partitioning method following Reichstein et al. (2005)", prec="double")
+GPP_DT <- ncdf4::ncvar_def("GPP_DT", "umolm-2s-1", list(lon,lat,time), mv,
+                        longname="gross primary productivity calculated using daytime partitioning method following Lasslop et al. (2010)", prec="double")
+Reco_DT <- ncdf4::ncvar_def("Reco_DT", "umolm-2s-1", list(lon,lat,time), mv,
+                           longname="Ecosystem respiration calculated using daytime partitioning method following Lasslop et al. (2010)", prec="double")
 Ustar <- ncdf4::ncvar_def("Ustar", "m/s", list(lon,lat,time), mv,
                         longname="friction velocity", prec="double")
+VPD <- ncdf4::ncvar_def("VPD", "m/s", list(lon,lat,time), mv,
+                          longname="vapor pressure deficit", prec="double")
 Rnet  <- ncdf4::ncvar_def("Rnet", "W/m^2", list(lon,lat,time), mv,
                           longname="net radiation", prec="double")
 RadDif <- ncdf4::ncvar_def("RadDif", "W/m^2", list(lon,lat,time), mv,
@@ -1032,13 +1045,15 @@ GPP_fqc <- ncdf4::ncvar_def("GPP_fqc", "NA", list(lon,lat,time),
                         longname="gross primary productivity gap-filling flag", prec="integer")
 Ustar_fqc <- ncdf4::ncvar_def("Ustar_fqc", "NA", list(lon,lat,time),
                             longname="friction velocity gap-filling flag", prec="integer")
+VPD_fqc <- ncdf4::ncvar_def("VPD_fqc", "NA", list(lon,lat,time),
+                              longname="vapor pressure deficit gap-filling flag", prec="integer")
 Rnet_fqc  <- ncdf4::ncvar_def("Rnet_fqc", "NA", list(lon,lat,time),
                           longname="net radiation gap-filling flag", prec="integer")
 
 #Create the output file
 ncAtm <- ncdf4::nc_create(fileOutAtm, list(LATIXY,LONGXY,FLDS,FSDS,PRECTmms,RH,PSRF,TBOT,WIND,ZBOT,FLDS_fqc,FSDS_fqc,PRECTmms_fqc,RH_fqc,PSRF_fqc,TBOT_fqc,WIND_fqc))
 
-ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FC,FSH,EFLX_LH_TOT,FSH_NSAE,EFLX_LH_TOT_NSAE,GPP,Ustar,Rnet,RadDif,RadDir,ZBOT,NEE_fqc,FSH_fqc,EFLX_LH_TOT_fqc,GPP_fqc,Ustar_fqc,Rnet_fqc,qfNEE,qfFC,qfFSH,qfEFLX_LH_TOT,qfFSH_NSAE,qfEFLX_LH_TOT_NSAE))
+ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FC,FSH,EFLX_LH_TOT,FSH_NSAE,EFLX_LH_TOT_NSAE,GPP,GPP_DT,Reco_DT,Ustar,VPD,Rnet,RadDif,RadDir,ZBOT,NEE_fqc,FSH_fqc,EFLX_LH_TOT_fqc,GPP_fqc,Ustar_fqc,VPD_fqc,Rnet_fqc,qfNEE,qfFC,qfFSH,qfEFLX_LH_TOT,qfFSH_NSAE,qfEFLX_LH_TOT_NSAE))
 
 
 # Write some values to this variable on disk.
@@ -1104,7 +1119,10 @@ ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FC,FSH,EFLX_LH_TO
  ncdf4::ncvar_put(ncEval, EFLX_LH_TOT, Data.mon$LE)
  ncdf4::ncvar_put(ncEval, EFLX_LH_TOT_NSAE, Data.mon$LE_NSAE)
  ncdf4::ncvar_put(ncEval, GPP, Data.mon$GPP)
+ ncdf4::ncvar_put(ncEval, GPP_DT, Data.mon$GPP_DT)
+ ncdf4::ncvar_put(ncEval, Reco_DT, Data.mon$Reco_DT)
  ncdf4::ncvar_put(ncEval, Ustar, Data.mon$Ustar)
+ ncdf4::ncvar_put(ncEval, VPD, Data.mon$VPD)
  ncdf4::ncvar_put(ncEval, Rnet, Data.mon$radNet)
  ncdf4::ncvar_put(ncEval, RadDir, Data.mon$RadDir)
  ncdf4::ncvar_put(ncEval, RadDif, Data.mon$RadDif)
@@ -1114,6 +1132,7 @@ ncEval <- ncdf4::nc_create(fileOutEval, list(LATIXY,LONGXY,NEE,FC,FSH,EFLX_LH_TO
  ncdf4::ncvar_put(ncEval, EFLX_LH_TOT_fqc, Data.mon$LE_fqc)
  ncdf4::ncvar_put(ncEval, GPP_fqc, Data.mon$GPP_fqc)
  ncdf4::ncvar_put(ncEval, Ustar_fqc, Data.mon$Ustar_fqc)
+ ncdf4::ncvar_put(ncEval, VPD_fqc, Data.mon$VPD_fqc)
  ncdf4::ncvar_put(ncEval, Rnet_fqc, Data.mon$radNet_fqc)
  ncdf4::ncvar_put(ncEval, qfNEE, Data.mon$qfNEE)
  ncdf4::ncvar_put(ncEval, qfFC, Data.mon$qfFC)
@@ -1130,7 +1149,10 @@ ncdf4::ncatt_put(ncEval, FSH_NSAE,"mode","time-dependent" ,prec=NA,verbose=FALSE
 ncdf4::ncatt_put(ncEval, EFLX_LH_TOT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, EFLX_LH_TOT_NSAE,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, GPP,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, GPP_DT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, Reco_DT,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, Ustar,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, VPD,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, Rnet,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, RadDif,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, RadDir,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
@@ -1140,12 +1162,14 @@ ncdf4::ncatt_put(ncEval, FSH_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,
 ncdf4::ncatt_put(ncEval, EFLX_LH_TOT_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, GPP_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, Ustar_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
+ncdf4::ncatt_put(ncEval, VPD_fqc,"mode","time-dependent" ,prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, Rnet_fqc,"mode","time-dependent",prec=NA,verbose=FALSE,definemode=FALSE )
 ncdf4::ncatt_put(ncEval, NEE_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
 ncdf4::ncatt_put(ncEval, FSH_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
 ncdf4::ncatt_put(ncEval, EFLX_LH_TOT_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
 ncdf4::ncatt_put(ncEval, GPP_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
 ncdf4::ncatt_put(ncEval, Ustar_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
+ncdf4::ncatt_put(ncEval, VPD_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
 ncdf4::ncatt_put(ncEval, Rnet_fqc,"method_gap-fill","0=no gap-filling, 1=regression, 2=ReddyProc_methA, 3=ReddyProc_methB, 4=ReddyProc_methC" ,prec=NA,verbose=FALSE,definemode=FALSE)
 
 #Quality flag attributes
@@ -1170,8 +1194,8 @@ ncdf4::nc_close(ncAtm)
 ncdf4::nc_close(ncEval)
 
 remove(time, timeStep, fileOutAtm, fileOutEval, ncAtm, ncEval, Data.mon,
-       FLDS,FSDS,RH,PRECTmms,PSRF,TBOT,WIND,ZBOT, NEE,FC, FSH, FSH_NSAE, EFLX_LH_TOT, EFLX_LH_TOT_NSAE,GPP, Ustar, Rnet,RadDif,RadDir,
-       FLDS_fqc,FSDS_fqc,RH_fqc,PRECTmms_fqc,PSRF_fqc,TBOT_fqc,WIND_fqc, NEE_fqc, FSH_fqc,EFLX_LH_TOT_fqc, GPP_fqc, Ustar_fqc, Rnet_fqc,qfNEE,qfFC,qfFSH,qfFSH_NSAE,qfEFLX_LH_TOT,qfEFLX_LH_TOT_NSAE)
+       FLDS,FSDS,RH,PRECTmms,PSRF,TBOT,WIND,ZBOT, NEE,FC, FSH, FSH_NSAE, EFLX_LH_TOT, EFLX_LH_TOT_NSAE,GPP,GPP_DT,Reco_DT, Ustar,VPD, Rnet,RadDif,RadDir,
+       FLDS_fqc,FSDS_fqc,RH_fqc,PRECTmms_fqc,PSRF_fqc,TBOT_fqc,WIND_fqc, NEE_fqc, FSH_fqc,EFLX_LH_TOT_fqc, GPP_fqc, Ustar_fqc,VPD_fqc, Rnet_fqc,qfNEE,qfFC,qfFSH,qfFSH_NSAE,qfEFLX_LH_TOT,qfEFLX_LH_TOT_NSAE)
   } #End of monthloop
 
 #} #End of year loop
