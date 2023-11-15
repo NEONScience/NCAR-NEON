@@ -91,7 +91,7 @@ ENV MAKEFLAGS='-j3'
  #   tidyverse \
     
      ## from bioconductor
-    && R -e 'utils::install.packages(c("remotes")' \
+    && R -e 'utils::install.packages(c("remotes"))' \
     && R -e 'remotes::install_github("rstudio/renv@0.17.3")'\
     && R -e 'renv::consent(provided=TRUE); renv::restore()' \
     #Install packages from github repos
