@@ -69,34 +69,34 @@ ENV MAKEFLAGS='-j3'
     && apt-get install -y $BUILDDEPS $RUNDEPS \
 
     # Installing R package dependencies that are only workflow related (including CI combiner)
-    && install2.r --error --repos "https://packagemanager.rstudio.com/cran/__linux__/focal/2021-05-17"\ 
+#    && install2.r --error --repos "https://packagemanager.rstudio.com/cran/__linux__/focal/2021-05-17"\ 
     #"https://cran.rstudio.com/"\
-    devtools \
-    BiocManager \
-    REddyProc \
-    ncdf4 \
-    reshape2 \
-    ggplot2 \
-    gridExtra \
+#    devtools \
+#    BiocManager \
+#    REddyProc \
+#    ncdf4 \
+#    reshape2 \
+#    ggplot2 \
+#    gridExtra \
     #tidyverse \
-    naniar \
+#    naniar \
     #aws.s3 \
-    neonUtilities \
-    googleCloudStorageR \
+#    neonUtilities \
+#    googleCloudStorageR \
     
-     && install2.r --error --repos "https://packagemanager.rstudio.com/cran/__linux__/focal/2023-09-22"\ 
+ #    && install2.r --error --repos "https://packagemanager.rstudio.com/cran/__linux__/focal/2023-09-22"\ 
     #"https://cran.rstudio.com/"\
-    neonUtilities \
-    Rfast \
-    tidyverse \
+#    neonUtilities \
+#    Rfast \
+ #   tidyverse \
     
      ## from bioconductor
-    && R -e "BiocManager::install('rhdf5', update=FALSE, ask=FALSE)" \
-    
-    && R -e "install.packages('Rfast')" \
+    && R -e 'utils::install.packages(c("remotes")' \
+    && R -e 'remotes::install_github("rstudio/renv@0.17.3")'\
+    && R -e 'renv::consent(provided=TRUE); renv::restore()' \
     #Install packages from github repos
    # && R -e "devtools::install_github('NEONScience/eddy4R/pack/eddy4R.base')" \
-    && R -e "devtools::install(pkg = 'gapFilling/pack/NEON.gf', dependencies=TRUE, upgrade = TRUE);devtools::install_github('NEONScience/eddy4R/pack/eddy4R.base');devtools::install_github('NEONScience/eddy4R/pack/eddy4R.qaqc')" \
+    && R -e 'renv::install(pkg = "gapFilling/pack/NEON.gf")' \
     
 
 
