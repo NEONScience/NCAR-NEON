@@ -2,7 +2,12 @@
   "bioconductor.version": null,
   "external.libraries": [],
   "ignored.packages": [
-    "NEON.gf"
+    "NEON.gf",
+    "Noble",
+    "REddyProc.gapFill",
+    "eddy4R.gf",
+    "rnoaa",
+    "accs"
   ],
   "package.dependency.fields": [
     "Imports",

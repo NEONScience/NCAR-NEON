@@ -91,12 +91,13 @@ ENV MAKEFLAGS='-j3'
  #   tidyverse \
     
      ## from bioconductor
-    && R -e 'utils::install.packages(c("remotes"))' \
-    && R -e 'remotes::install_github("rstudio/renv@0.17.3")'\
-    && R -e 'renv::consent(provided=TRUE); renv::restore()' \
+    && R -e 'utils::install.packages("remotes")' \
+    && R -e 'remotes::install_github("rstudio/renv@0.16.0")'\
+    && R -e 'renv::consent(provided=TRUE); renv::restore()' \ 
+    && R -e 'renv::install(pkg = "gapFilling/pack/NEON.gf")' \
     #Install packages from github repos
    # && R -e "devtools::install_github('NEONScience/eddy4R/pack/eddy4R.base')" \
-    && R -e 'renv::install(pkg = "gapFilling/pack/NEON.gf")' \
+    
     
 
 

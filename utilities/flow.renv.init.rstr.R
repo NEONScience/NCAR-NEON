@@ -42,7 +42,8 @@
 #dirWork <- '~/NEON-IS-data-processing/pack/NEONprocIS.wq'
 #dirWork <- '~/R/NEON-IS-data-processing-homeDir/pack/NEONprocIS.base'
 dirWork <- "/home/ddurden/eddy/code/NCAR-NEON-ddurden"
-PackIgnr <- c("NEON.gf") # These should already be in the respective docker containers
+
+PackIgnr <- c("NEON.gf", "Noble", "REddyProc.gapFill", "eddy4R.gf", "rnoaa", "accs") # These should already be in the respective docker containers
 
 # Keep and use the local project that renv creates when creating/updating the lockfile 
 # in dirWork? If TRUE, note .Rprofile and .Rproj files will be created/retained in dirWork, 
