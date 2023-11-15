@@ -34,13 +34,17 @@ lapply(packReq, function(x) {
   }})
 
 #update neonUtilities
-remove.packages("neonUtilities")
-install.packages("neonUtilities", repos ='http://cran.rstudio.com/')
-
-
-#Install packages from github repos
-devtools::install_github("NEONScience/eddy4R/pack/eddy4R.base")
-devtools::install_github("NEONScience/eddy4R/pack/eddy4R.qaqc")
+# remove.packages("neonUtilities")
+#  install.packages("tidyr", repos ='http://cran.rstudio.com/')
+#  detach(rlang)
+#  install.packages("rlang", repos ='http://cran.rstudio.com/')
+# library(rlang)
+# 
+# #Install packages from github repos
+# devtools::install_github("NEONScience/eddy4R/pack/eddy4R.base")
+# devtools::install_github("NEONScience/eddy4R/pack/eddy4R.qaqc")
+library(eddy4R.base)
+library(eddy4R.qaqc)
 
 #Setup Environment
 options(stringsAsFactors=F)
@@ -101,9 +105,9 @@ user <- 'David Durden'
 methPlot <- TRUE #Should data quality plots be created?
 
 #The version data for the FP standard conversion processing
-ver <- paste0("v",format(Sys.time(), "%Y%m%d"))
+ver <- paste0("v3/",format(Sys.time(), "%Y%m%d"))
 #Base directory for output
-DirOutBase <-paste0("~/eddy/data/CLM",ver)
+DirOutBase <-paste0("~/eddy/data/CLM/",ver)
 #Download directory for HDF5 files from the API
 DirDnld= c("/home/ddurden/eddy/tmp/CLM",tempdir())[1]
 
@@ -191,7 +195,8 @@ neonUtilities::zipsByProduct(dpID=idDpFlux, package=Pack,
                              site=Site, 
                              startdate= as.character(dateBgn),
                              enddate= as.character(dateEnd),
-                             savepath= DirDnld, 
+                             savepath= DirDnld,
+                             include.provisional=TRUE,
                              check.size=F)
 
 #Grab one zip file for the site to extract metadata and unzip
@@ -281,7 +286,8 @@ dataList <- list()
       "presAtmBaro" = dataList$dp01$presAtm[[Site]][which(dataList$dp01$presAtm[[Site]]$verticalPosition == IdVer), "data.presBaro.presAtm.mean"],
       "qfPresAtmBaro" = dataList$dp01$presAtm[[Site]][which(dataList$dp01$presAtm[[Site]]$verticalPosition == IdVer), "qfqm.presBaro.presAtm.qfFinl"],
       "tempAirSoni" = dataList$dp01$tempAir[[Site]][which(dataList$dp01$tempAir[[Site]]$verticalPosition == IdVer), "data.soni.tempAir.mean"], 
-      "qfTempAirSoni" = dataList$dp01$tempAir[[Site]][which(dataList$dp01$tempAir[[Site]]$verticalPosition == IdVer), "qfqm.soni.tempAir.qfFinl"]#,
+      "qfTempAirSoni" = dataList$dp01$tempAir[[Site]][which(dataList$dp01$tempAir[[Site]]$verticalPosition == IdVer), "qfqm.soni.tempAir.qfFinl"],
+      "rtioMoleDryH2o" = dataList$dp01$rtioMoleDryH2o[[Site]][which(dataList$dp01$rtioMoleDryH2o[[Site]]$verticalPosition == IdVer), "data.h2oTurb.rtioMoleDryH2o.mean"]
       #"tempAirTop" = dataList$dp01$tempAirTop[[Site]][which(dataList$dp01$tempAirTop[[Site]]$verticalPosition == IdVer), "data.tempAirTop.temp.mean"],
       #"qfTempAirTop" = dataList$dp01$tempAirTop[[Site]][which(dataList$dp01$tempAirTop[[Site]]$verticalPosition == IdVer), "qfqm.tempAirTop.temp.qfFinl"]
      # "timeTempAirTop" = dataList$dp01$tempAirTop[[Site]][which(dataList$dp01$tempAirTop[[Site]]$verticalPosition == IdVer), "timeBgn"]
@@ -393,6 +399,7 @@ dataDfFlux$LE_NSAE[(which(dataDfFlux$qfTurbH2oFinl == 1|dataDfFlux$qfWS_MDS == 1
 dataDfFlux$H_NSAE[(which(dataDfFlux$qfTempAirSoni == 1|dataDfFlux$qfWS_MDS == 1))] <- NaN
 dataDfFlux$WS_MDS[(which(dataDfFlux$qfWS_MDS == 1))] <- NaN
 dataDfFlux$tempAirSoni[(which(dataDfFlux$qfTempAirSoni == 1))] <- NaN
+dataDfFlux$rtioMoleDryH2o[(which(dataDfFlux$qfTurbH2oFinl == 1))] <- NaN
 #dataDfFlux$tempAirTop[(which(dataDfFlux$qfTempAirTop== 1))] <- NaN
 #dataDfFlux$Pa_MDS[(which(dataDfFlux$qfTurbFlow == 1))] <- NaN
 
@@ -448,7 +455,7 @@ lapply(names(dataDfFlux), function(x) {
 # }
 
 #List of variables to perform despiking on
-varDspk <- c("FC","NEE","LE","LE_NSAE","H","H_NSAE","Ustar","WS_MDS","tempAirSoni")
+varDspk <- c("FC","NEE","LE","LE_NSAE","H","H_NSAE","Ustar","WS_MDS","tempAirSoni","rtioMoleDryH2o")
 
 #Lapply to perform despiking for flux variables
 base::lapply(varDspk, function(y){
@@ -515,7 +522,9 @@ dataMet <- lapply(listDpNum, function(x){
   try(expr = neonUtilities::loadByProduct(site = Site, dpID = x, 
                                           startdate = as.character(dateBgn), 
                                           enddate = as.character(dateEnd), 
-                                          package = Pack, timeIndex = TimeAgr, check.size = FALSE), 
+                                          package = Pack, timeIndex = TimeAgr, 
+                                          include.provisional = TRUE, 
+                                          check.size = FALSE), 
       silent = TRUE)
   })
 
@@ -546,6 +555,14 @@ dataMetSub$FLDS_MDS <- dataMetSub$FLDS_MDS[dataMetSub$FLDS_MDS$verticalPosition 
 dataMetSub$rH_002 <- dataMetSub$rH[!dataMetSub$rH$horizontalPosition == "003",] #tower top rH
 dataMetSub$rH <- dataMetSub$rH[dataMetSub$rH$horizontalPosition == "003"|dataMetSub$rH$horizontalPosition == "002",] #soil plot rH, added 002 for PUUM
 
+#######################################################################################################################################################
+#Calculate rH from IRGA rtioMoleDryH2o
+presH2o <- eddy4R.base::def.pres.h2o.rtio.mole.h2o.dry.pres(rtioMoleDryH2o = eddy4R.base::def.unit.conv(dataDfFlux$rtioMoleDryH2o, unitFrom = c("mmolH2o mol-1Dry"), unitTo = c("molH2o mol-1Dry")), pres = eddy4R.base::def.unit.conv(dataMetSub$Pa_MDS$staPresMean, unitFrom = "kPa", unitTo = "Pa")) #Calculate water vapor pressure from dry mole fraction and static pressure
+presH2oSat <- eddy4R.base::def.pres.h2o.sat.temp.mag(temp = as.numeric(eddy4R.base::def.unit.conv(dataMetSub$TBOT$tempTripleMean, unitFrom = "C", unitTo = "K"))) #Calculate saturated water vapor pressure from temperature using Magnus equation
+attributes(presH2o)$unit = "Pa"
+attributes(presH2oSat)$unit = "Pa"
+dataMetSub$rH_003 <-  data.frame("startDateTime" = dataMetSub$Pa_MDS$startDateTime, "RHMean" = eddy4R.base::def.rh.pres.h2o.pres.sat.h2o(presH2o = presH2o, presH2oSat = presH2oSat), "RHFinalQF" = as.integer(dataMetSub$Pa_MDS$staPresFinalQF == 1|dataMetSub$TBOT$finalQF == 1|dataDfFlux$qfLE == 1)) #Calculation of RH from water vapor partial pressure and saturation pressure
+########################################################################################################################################################  
 dataMetSub$PAR <- dataMetSub$PAR[dataMetSub$PAR$verticalPosition == IdVer,]
 
 
@@ -629,9 +646,9 @@ qfGf$Pa_MDS <- data.frame("Pa_MDS" = dataMetSubRglr$Pa_MDS$staPresFinalQF, "Pa_M
 
 
 #Grab rH data streams
-dataGf$rH <- data.frame("rH" = dataMetSubRglr$rH$RHMean, "rH_002" = dataMetSubRglr$rH_002$RHMean)
+dataGf$rH <- data.frame("rH" = dataMetSubRglr$rH$RHMean, "rH_002" = dataMetSubRglr$rH_002$RHMean, "rH_003" = dataMetSubRglr$rH_003$RHMean)
 #Grab rH qfqm streams
-qfGf$rH <- data.frame("rH" = dataMetSubRglr$rH$RHFinalQF, "rH_002" = dataMetSubRglr$rH_002$RHFinalQF)
+qfGf$rH <- data.frame("rH" = dataMetSubRglr$rH$RHFinalQF, "rH_002" = dataMetSubRglr$rH_002$RHFinalQF, "rH_003" = dataMetSubRglr$rH_003$RHFinalQF)
 
 #Grab Rg data streams
 dataGf$Rg <- data.frame("Rg" = dataMetSubRglr$Rg$inSWMean, "Rg_002" = dataMetSubRglr$SW_DIR$gloRadMean, "Rg_003" = dataMetSubRglr$PAR$PARMean)
@@ -1249,7 +1266,7 @@ if(MethOut == "gcs"){
 if(methPlot == TRUE){
 
 # example from https://felixfan.github.io/stacking-plots-same-x/
-mm <- melt(subset(dataClm, select=c(DateTime,TBOT, RH,WIND,PRECTmms, PSRF,FLDS,FSDS)), id.var="DateTime")
+mm <- reshape2::melt(subset(dataClm, select=c(DateTime,TBOT, RH,WIND,PRECTmms, PSRF,FLDS,FSDS)), id.var="DateTime")
 ggplot(mm, aes(x = DateTime, y = value)) + 
   geom_line(aes(color = variable)) + 
   facet_grid(variable ~ ., scales = "free_y") + 
@@ -1286,14 +1303,14 @@ dev.off()#close plotting device
 
 
 #Merge data sets to see the distribution of gap-filling methods
-tmp <- melt(subset(dataClm, select=c(DateTime,TBOT, RH,WIND,PRECTmms, PSRF,FLDS,FSDS)), id.var="DateTime")
+tmp <- reshape2::melt(subset(dataClm, select=c(DateTime,TBOT, RH,WIND,PRECTmms, PSRF,FLDS,FSDS)), id.var="DateTime")
 tmpQf <- as.data.frame(qfClm)
 tmpQf$DateTime <- dataClm$DateTime
-names(tmpQf) <- str_remove(names(tmpQf), '_fqc')
-tmpQfLong <- melt(subset(tmpQf, select=c(DateTime,TBOT, RH,WIND,PRECTmms, PSRF,FLDS,FSDS)), id.var="DateTime")
+names(tmpQf) <- stringr::str_remove(names(tmpQf), '_fqc')
+tmpQfLong <- reshape2::melt(subset(tmpQf, select=c(DateTime,TBOT, RH,WIND,PRECTmms, PSRF,FLDS,FSDS)), id.var="DateTime")
 
 dfLong <- merge(tmp,tmpQfLong, by = c("DateTime", "variable")) %>% 
-  dplyr::mutate(value.y = replace_na(value.y, "no gap-filling"))
+  dplyr::mutate(value.y = tidyr::replace_na(value.y, "no gap-filling"))
 
 n = length(levels(as.factor(dfLong$value.y)))
 col = setNames(hcl(seq(15,375,length=n+1)[1:n], 100, 65), levels(as.factor(dfLong$value.y)))
@@ -1314,7 +1331,7 @@ for(idxName in unique(as.character(dfLong$variable))){
   
   p2 <- tmp %>%
     ggplot(aes(x=factor(value.y))) +
-    geom_bar(aes(y = (..count..)/sum(..count..))) + 
+    geom_bar(aes(y = (after_stat(count))/sum(after_stat(count)))) + 
     scale_y_continuous(labels=scales::percent) +
     ylab("relative frequencies") +
     xlab("Gap-filling method") +
