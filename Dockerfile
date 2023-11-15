@@ -49,17 +49,17 @@ ENV MAKEFLAGS='-j3'
             libproj-dev \
 			      libssl-dev \
 			      libgdal-dev \
-			      libnetcdf-dev \
 			      libgsl-dev \
 			      # Library for git via ssh key
 			      ssh \
 			      vim \
+			      libhdf5-dev \
+			      libnetcdf-dev \
             libxml2-dev" \
             #mysql-common" \
             #fftw3\
             #libnetcdf11 \
-    && BUILDDEPS="libhdf5-dev \
-                  libjpeg-dev \
+    && BUILDDEPS="libjpeg-dev \
                  libtiff5-dev \
                  libpng-dev \
                  " \
@@ -84,13 +84,21 @@ ENV MAKEFLAGS='-j3'
     neonUtilities \
     googleCloudStorageR \
     
+     && install2.r --error --repos "https://packagemanager.rstudio.com/cran/__linux__/focal/2023-09-22"\ 
+    #"https://cran.rstudio.com/"\
+    neonUtilities \
+    Rfast \
+    tidyverse \
+    
      ## from bioconductor
     && R -e "BiocManager::install('rhdf5', update=FALSE, ask=FALSE)" \
     
     && R -e "install.packages('Rfast')" \
     #Install packages from github repos
    # && R -e "devtools::install_github('NEONScience/eddy4R/pack/eddy4R.base')" \
-    && R -e "devtools::install(pkg = 'gapFilling/pack/NEON.gf', dependencies=TRUE, upgrade = TRUE)" \
+    && R -e "devtools::install(pkg = 'gapFilling/pack/NEON.gf', dependencies=TRUE, upgrade = TRUE);devtools::install_github('NEONScience/eddy4R/pack/eddy4R.base');devtools::install_github('NEONScience/eddy4R/pack/eddy4R.qaqc')" \
+    
+
 
     # provide read and write access for default R library location to Rstudio users
     && chmod -R 777 /usr/local/lib/R/site-library \
