@@ -92,13 +92,16 @@ ENV MAKEFLAGS='-j3'
     
     # copy clone of GitHub source repo "NEONScience/NEON-FIU-algorithm" to the Docker image
 COPY renv.lock renv.lock
+
      ## from bioconductor
 RUN R -e 'utils::install.packages("remotes")' \
     && R -e 'remotes::install_github("rstudio/renv@v1.0.3")'\
    # renv::consent(provided=TRUE);
-    && R -e 'renv::restore()' \
+    && R -e 'renv::restore()' 
+ 
+COPY . .    
     #&& R -e  'renv::install(pkg = "gapFilling/pack/NEON.gf")' \
-    && R -e 'renv::install(pkg = "gapFilling/pack/NEON.gf")' \
+RUN R -e 'renv::install(pkg = "gapFilling/pack/NEON.gf")' \
     #Install packages from github repos
    # && R -e "devtools::install_github('NEONScience/eddy4R/pack/eddy4R.base')" \
     
