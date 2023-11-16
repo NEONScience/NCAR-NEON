@@ -23,7 +23,7 @@
 
 #devtools::install("rlang@1.0.6")
 #Call the R HDF5 Library
-packReq <- c("rhdf5", "REddyProc", "ncdf4","reshape2","ggplot2","gridExtra","knitr","naniar", "Rfast", "neonUtilities", "googleCloudStorageR","dplyr", "tidyr")
+packReq <- c("rhdf5", "REddyProc", "ncdf4","reshape2","ggplot2","gridExtra","knitr","naniar", "Rfast", "neonUtilities", "googleCloudStorageR","dplyr", "tidyr","mlegp")
 
 #Install and load all required packages
 lapply(packReq, function(x) {

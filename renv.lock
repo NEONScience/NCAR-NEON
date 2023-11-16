@@ -3,26 +3,6 @@
     "Version": "4.0.5",
     "Repositories": [
       {
-        "Name": "BioCsoft",
-        "URL": "https://bioconductor.org/packages/3.12/bioc"
-      },
-      {
-        "Name": "BioCann",
-        "URL": "https://bioconductor.org/packages/3.12/data/annotation"
-      },
-      {
-        "Name": "BioCexp",
-        "URL": "https://bioconductor.org/packages/3.12/data/experiment"
-      },
-      {
-        "Name": "BioCworkflows",
-        "URL": "https://bioconductor.org/packages/3.12/workflows"
-      },
-      {
-        "Name": "BioCbooks",
-        "URL": "https://bioconductor.org/packages/3.12/books"
-      },
-      {
         "Name": "CRANNew",
         "URL": "https://packagemanager.rstudio.com/cran/2023-10-22"
       },
@@ -58,10 +38,6 @@
       "Package": "BiocVersion",
       "Version": "3.12.0",
       "Source": "Bioconductor",
-      "git_url": "https://git.bioconductor.org/packages/BiocVersion",
-      "git_branch": "master",
-      "git_last_commit": "23b9719",
-      "git_last_commit_date": "2020-04-27",
       "Requirements": [
         "R"
       ],
@@ -304,10 +280,6 @@
       "Package": "Rhdf5lib",
       "Version": "1.12.1",
       "Source": "Bioconductor",
-      "git_url": "https://git.bioconductor.org/packages/Rhdf5lib",
-      "git_branch": "RELEASE_3_12",
-      "git_last_commit": "cf464f4",
-      "git_last_commit_date": "2021-01-26",
       "Requirements": [
         "R"
       ],
@@ -2024,10 +1996,6 @@
       "Package": "rhdf5",
       "Version": "2.34.0",
       "Source": "Bioconductor",
-      "git_url": "https://git.bioconductor.org/packages/rhdf5",
-      "git_branch": "RELEASE_3_12",
-      "git_last_commit": "ec861b8",
-      "git_last_commit_date": "2020-10-27",
       "Requirements": [
         "R",
         "Rhdf5lib",
@@ -2040,10 +2008,6 @@
       "Package": "rhdf5filters",
       "Version": "1.2.1",
       "Source": "Bioconductor",
-      "git_url": "https://git.bioconductor.org/packages/rhdf5filters",
-      "git_branch": "RELEASE_3_12",
-      "git_last_commit": "04dcf6e",
-      "git_last_commit_date": "2021-05-03",
       "Requirements": [
         "Rhdf5lib"
       ],

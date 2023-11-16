@@ -99,9 +99,10 @@ RUN R -e 'utils::install.packages("remotes")' \
    # renv::consent(provided=TRUE);
     && R -e 'renv::restore()' 
  
-COPY . .    
+
+COPY gapFilling/pack/NEON.gf gapFilling/pack/NEON.gf
     #&& R -e  'renv::install(pkg = "gapFilling/pack/NEON.gf")' \
-RUN R -e 'renv::install(pkg = "gapFilling/pack/NEON.gf")' \
+RUN R -e 'devtools::install(pkg = "gapFilling/pack/NEON.gf")' \
     #Install packages from github repos
    # && R -e "devtools::install_github('NEONScience/eddy4R/pack/eddy4R.base')" \
     
