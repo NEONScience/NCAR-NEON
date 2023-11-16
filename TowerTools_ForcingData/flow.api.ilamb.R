@@ -82,7 +82,7 @@ dataList <- list()
 dataList <- lapply(setDate, function(x) {
   year <- lubridate::year(x)
   mnth <- lubridate::month(x)
-  tryCatch(som::def.neon.api.get.data.hdf5(site=Site,idDpMain=idDpFlux,year=year,mnth=mnth,DirDnld=DirDnld,Rm = TRUE), error=function(e) NULL)
+  tryCatch(def.neon.api.get.data.hdf5(site=Site,idDpMain=idDpFlux,year=year,mnth=mnth,DirDnld=DirDnld,Rm = TRUE), error=function(e) NULL) #som::
 })
 
 #Add names to list for year/month combinations

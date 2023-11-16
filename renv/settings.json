@@ -1,5 +1,5 @@
 {
-  "bioconductor.version": null,
+  "bioconductor.version": "3.12",
   "external.libraries": [],
   "ignored.packages": [
     "NEON.gf",

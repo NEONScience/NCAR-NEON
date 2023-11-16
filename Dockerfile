@@ -25,8 +25,7 @@ FROM quay.io/battelleecology/rstudio:4.0.5
 #RUN echo "${BUILD_DATE}, ${IMAGE_NAME}, ${VCS_REF}, ${VERSION}"
 
 WORKDIR /home/NCAR-NEON
-# copy clone of GitHub source repo "NEONScience/NEON-FIU-algorithm" to the Docker image
-COPY . .
+
 
 # Build R dependencies using two cpu's worth of resources
 ENV MAKEFLAGS='-j3'
@@ -50,6 +49,7 @@ ENV MAKEFLAGS='-j3'
 			      libssl-dev \
 			      libgdal-dev \
 			      libgsl-dev \
+			      libgeos-dev\
 			      # Library for git via ssh key
 			      ssh \
 			      vim \
@@ -66,7 +66,7 @@ ENV MAKEFLAGS='-j3'
                  #libmysql++-dev \
                  #fftw3-dev \
                  
-    && apt-get install -y $BUILDDEPS $RUNDEPS \
+    && apt-get install -y $BUILDDEPS $RUNDEPS 
 
     # Installing R package dependencies that are only workflow related (including CI combiner)
 #    && install2.r --error --repos "https://packagemanager.rstudio.com/cran/__linux__/focal/2021-05-17"\ 
@@ -90,24 +90,30 @@ ENV MAKEFLAGS='-j3'
 #    Rfast \
  #   tidyverse \
     
+    # copy clone of GitHub source repo "NEONScience/NEON-FIU-algorithm" to the Docker image
+COPY renv.lock renv.lock
      ## from bioconductor
-    && R -e 'utils::install.packages("remotes")' \
-    && R -e 'remotes::install_github("rstudio/renv@0.16.0")'\
-    && R -e 'renv::consent(provided=TRUE); renv::restore()' \ 
+RUN R -e 'utils::install.packages("remotes")' \
+    && R -e 'remotes::install_github("rstudio/renv@v1.0.3")'\
+   # renv::consent(provided=TRUE);
+    && R -e 'renv::restore()' \
+    #&& R -e  'renv::install(pkg = "gapFilling/pack/NEON.gf")' \
     && R -e 'renv::install(pkg = "gapFilling/pack/NEON.gf")' \
     #Install packages from github repos
    # && R -e "devtools::install_github('NEONScience/eddy4R/pack/eddy4R.base')" \
     
     
 
-
-    # provide read and write access for default R library location to Rstudio users
-    && chmod -R 777 /usr/local/lib/R/site-library \
-    # Clean up build dependencies
+    
+        # Clean up build dependencies
     && apt-get remove --purge -y $BUILDDEPS \
     && apt-get autoremove -y \
     && apt-get autoclean -y \
     && rm -rf /var/lib/apt/lists/* \
+
+    # provide read and write access for default R library location to Rstudio users
+    && chmod -R 777 /usr/local/lib/R/site-library \
+
     # Clean up the rocker image leftovers
     && rm -rf /tmp/rstudio* \
     && rm -rf /tmp/Rtmp* \
