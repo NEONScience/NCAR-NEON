@@ -30,7 +30,7 @@
 site <- "NIWO"
 
 #type of data file to download atmospheric (datm) or surface (surf) forcing files
-TypeFile <- c("atm/cdeps", "surf_files", "eval_files")[1]
+TypeFile <- c("atm/cdeps", "surf_files", "eval_files")[2]
 
 #Adding version number to s3 path
 versData <- c("v1","v2")[2]

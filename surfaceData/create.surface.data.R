@@ -180,7 +180,7 @@ for (i in 1:length(mgp_all.list)) {
   #i <- 1 
   
   #Grab the same tower lat and lon
-  tmpMeta <- try(accs::retrieve.location.metadata(resturl='http://den-prodcdsllb-1.ci.neoninternal.org/cdsWebApp', namedlocation=names(mgp_all.list[i]), includedescendants=TRUE, request = c('LatTow','LonTow')), silent = TRUE)
+  tmpMeta <- try(retrieve.location.metadata(resturl='http://den-prodcdsllb-1.ci.neoninternal.org/cdsWebApp', namedlocation=names(mgp_all.list[i]), includedescendants=TRUE, request = c('LatTow','LonTow')), silent = TRUE) #accs::
   
   #Logical test for metadata return (test for error message)
   if(class(tmpMeta) != "try-error"){
@@ -278,12 +278,12 @@ write.csv(varMetaSurf, file = paste(inputs, fileOutMeta, sep = "/"), row.names =
 if(MethOut == "s3"){
 
 #Upload PDF to ECS
-  accs::upload.to.ecs(
+  upload.to.ecs(
     s3Path = S3PathUpld,
     localPath = inputs,
     s3filename = fileOutMeta,
     filename = fileOutMeta
-  )
+  ) #accs::
 
 #Grab all output files names
 fileOut <- base::list.files(outputs)  
@@ -292,12 +292,12 @@ fileOut <- base::list.files(outputs)
 lapply(fileOut, function(x){
   print(x)
   #Function to upload to ECS
-  accs::upload.to.ecs(
+  upload.to.ecs(
     s3Path = S3PathUpld,
     localPath = outputs,
     s3filename = x,
     filename = x
-  ) 
+  ) #accs::
 })#End lapply for writing data out to S3
 
 } #End if statement to write to S3
