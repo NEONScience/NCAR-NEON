@@ -1,13 +1,14 @@
 from google.cloud import storage
 import base64
 import binascii
+import argparse
 
 
-def createBucketListing():
+def createBucketListing(project, bucket):
 
     gcsPrefix = "https://storage.neonscience.org/"
-    gcsBucketName = "neon-ncar"
-    storage_client = storage.Client()
+    gcsBucketName = bucket
+    storage_client = storage.Client(project)
     blobs = storage_client.list_blobs(gcsBucketName)
     listing = 'object,last_modified,etag' + '\n'
     for blob in blobs:
@@ -20,4 +21,8 @@ def createBucketListing():
 
 
 if __name__ == '__main__':
-    createBucketListing()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--project')
+    parser.add_argument('--bucket')
+    args=parser.parse_args()
+    createBucketListing(args.project, args.bucket)
