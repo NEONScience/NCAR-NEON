@@ -26,4 +26,3 @@ if __name__ == '__main__':
     parser.add_argument('--bucket')
     args=parser.parse_args()
     createBucketListing(args.project, args.bucket)
-    
