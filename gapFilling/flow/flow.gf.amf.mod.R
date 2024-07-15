@@ -955,6 +955,7 @@ names(stat)<-names(rpt)
 statAll <- reshape2::melt(stat)
 statAll <- statAll[,c('variable','value','L1')]
 names(statAll) <- c('method','percWithinUcrt95','typeGf')
+statAll$method <- plyr::revalue(statAll$method, c("rep"="Regression (WS_1_5_1)","mdsMeth01"="MDS (SW_IN,VPD,TA)","mdsMeth02"="MDS (SW_IN only)","mdsMeth03"="MDV"))
 
 titl=base::paste0('Performance of uncertainty estimates')
 
