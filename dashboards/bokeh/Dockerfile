@@ -13,7 +13,8 @@ ARG USER=bokeh
 RUN useradd -s /bin/bash -m ${USER}
 USER ${USER}
 
-RUN conda create --name neon -c conda-forge python numpy scipy matplotlib pandas netcdf4 jupyter xarray tqdm bokeh jupyterlab fsspec ujson gcsfs dask zarr pillow
+RUN conda install conda=22.9.0
+RUN conda create --name neon -c conda-forge python numpy scipy matplotlib pandas netcdf4 jupyter xarray tqdm bokeh=2.4.3 jupyterlab fsspec ujson gcsfs dask zarr pillow
 
 RUN echo "conda activate neon" >> ~/.bashrc
 SHELL ["/bin/bash", "--login", "-c"]
