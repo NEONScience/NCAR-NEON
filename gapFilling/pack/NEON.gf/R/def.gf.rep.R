@@ -58,6 +58,8 @@
 #   Cove Sturtevant (2020-12-22)
 #     Adjusted uncertainty outputs to be able to recreate the confidence interval around predicted y values 
 #     Output the variable of the chosen replicate regression for each filled value
+#   Cove Sturtevant (2024-07-15)
+#     Fixed bug incorrectly labeling the replicate used for gap-filling when not all replicates had acceptable regressions
 ##############################################################################################
 def.gf.rep <- function(dataGf,
                        meas = !base::is.na(dataGf[[NameVarGf]]),
@@ -99,7 +101,7 @@ def.gf.rep <- function(dataGf,
   # Window the data around each value to gap-fill (no point in evaluating the points which have no replicate sensor values)
   setGf <- base::which(base::is.na(varGf) & base::apply(X=!base::is.na(base::as.matrix(dataGf[,NameVarRep])),MARGIN=1,FUN=base::sum)>0)
   for(idxGf in setGf){
-    
+
     # If both Wndw and Rng are NULL, we are using all the data for every regression, so let's do all gaps at once
     if(base::is.null(Wndw) && base::is.null(Rng)){
       idxGf <- setGf
@@ -175,8 +177,9 @@ def.gf.rep <- function(dataGf,
         lm$pred$rsqAdj <- smmyLm$adj.r.squared
         
         # Does the R-squared pass our threshold for acceptance?
-        if(!base::is.null(RsqMin) && lm$pred$rsq < RsqMin){
+        if(!base::is.null(RsqMin) && smmyLm$adj.r.squared < RsqMin){
           lm <- NULL
+          return(lm)
         }
         
         # Remove predictions for which the independent data fell outside the appropriate range
@@ -201,16 +204,25 @@ def.gf.rep <- function(dataGf,
     base::names(lm) <- NameVarRep
     
     # Make sure we have at least one valid linear model
-    if(base::sum(!base::unlist(base::lapply(lm,base::is.null))) == 0){next}
+    if(base::sum(!base::unlist(base::lapply(lm,base::is.null))) == 0){
+      if(base::is.null(Wndw) && base::is.null(Rng)){
+        print('No regression model met requirements. No data were gap-filled.')
+        break
+      } else{
+        next
+      }
+    }
     
     # Choose whichever confidence interval for the prediction is smallest for each gap, and fill it
     ucrtPred <- base::do.call(base::cbind,base::lapply(lm,FUN=function(lmRep){lmRep$pred$upr-lmRep$pred$lwr}))
+    nameVarRepUcrt <- colnames(ucrtPred)
     idxColMinUcrt <- Rfast::rowMins(ucrtPred,value=FALSE)
-    for(idxLm in base::unique(idxColMinUcrt)){
+    idxColMinUcrt[rowSums(!is.na(ucrtPred)) == 0] <- 0 # indices that cannot be gap-filled
+    for(idxLm in setdiff(base::unique(idxColMinUcrt),0)){
       idxRow <- idxColMinUcrt==idxLm
       # Fill the gap 
       rpt[idxGf[idxRow],setdiff(nameColRpt,'varFill')] <- lm[[idxLm]]$pred[idxRow,]
-      rpt[idxGf[idxRow],'varFill'] <- NameVarRep[idxLm]
+      rpt[idxGf[idxRow],'varFill'] <- nameVarRepUcrt[idxLm]
       
     }
 
