@@ -5,7 +5,7 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 
-Site <- "SRER"
+Site <- "OAES"
 
 dateBgn <- "2018-01-01"
 dateEnd <- "2019-01-01"
@@ -82,7 +82,7 @@ dataDfMet <- lapply(seq_along(subVar), function(x){
 names(dataDfMet) <- names(varDp)
 
 #Calculate precip rate from bulk
-dataDfMet$PRECTmms_MDS <- dataDfMet$PRECTmms_MDS/1800 #1800 sec/0.5 hours
+#dataDfMet$PRECTmms_MDS <- dataDfMet$PRECTmms_MDS/1800 #1800 sec/0.5 hours
 
 #Calculate net radiation
 dataDfMet$radNet <-dataMetSub$Rg[["inSWMean"]] - dataMetSub$Rg[["outSWMean"]] + dataMetSub$Rg[["inLWMean"]] - dataMetSub$Rg[["outLWMean"]]
@@ -115,6 +115,10 @@ tmpRadQfqm <- select(dataMetSub$Rg,"inSWFinalQF", "outSWFinalQF", "outLWFinalQF"
 #Add radNet
 qfqmDfMet$radNet <- ifelse(rowSums(tmpRadQfqm) > 0, 1, 0)
 
+#Add precip flay
+dataMetSub$PRECTmms_MDS$secPrecipSciRvwQF[which(is.na(dataMetSub$PRECTmms_MDS$secPrecipSciRvwQF))] <- 0 #Science review NA will be replaced with 0
+qfqmDfMet$PRECTmms_MDS <- ifelse((dataMetSub$PRECTmms_MDS$secPrecipRangeQF + dataMetSub$PRECTmms_MDS$secPrecipSciRvwQF) > 0, 1, 0)
+
 qfqmDfMetLong <- gather(qfqmDfMet, "variable", "qfFinal", -time)
 
 #########################################################################################
@@ -136,6 +140,8 @@ ggplot2::ggplot(data = dataDfLong, aes(x = time, y = value, colour = qfFinal == 
   scale_colour_manual(name = 'qfFinal = 1', values = setNames(c('red','black'), c(T, F))) +
   facet_grid(variable ~ ., scales = "free_y")
 
+#Plot precip
+ggplot2::qplot(dataDfMet$time, dataDfMet$PRECTmms_MDS)
 
 
 #########################################################################################
