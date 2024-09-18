@@ -87,7 +87,7 @@ tryCatch({googleCloudStorageR::gcs_auth(json_file=gcsCred)},
 ##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "ABBY"
+Site <- "YELL"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -96,7 +96,7 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2023-09-30"
+dateEnd <- "2024-06-30"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
@@ -556,14 +556,7 @@ dataMetSub$FLDS_MDS <- dataMetSub$FLDS_MDS[dataMetSub$FLDS_MDS$verticalPosition 
 dataMetSub$rH_002 <- dataMetSub$rH[!dataMetSub$rH$horizontalPosition == "003",] #tower top rH
 dataMetSub$rH <- dataMetSub$rH[dataMetSub$rH$horizontalPosition == "003"|dataMetSub$rH$horizontalPosition == "002",] #soil plot rH, added 002 for PUUM
 
-#######################################################################################################################################################
-#Calculate rH from IRGA rtioMoleDryH2o
-presH2o <- eddy4R.base::def.pres.h2o.rtio.mole.h2o.dry.pres(rtioMoleDryH2o = eddy4R.base::def.unit.conv(dataDfFlux$rtioMoleDryH2o, unitFrom = c("mmolH2o mol-1Dry"), unitTo = c("molH2o mol-1Dry")), pres = eddy4R.base::def.unit.conv(dataMetSub$Pa_MDS$staPresMean, unitFrom = "kPa", unitTo = "Pa")) #Calculate water vapor pressure from dry mole fraction and static pressure
-presH2oSat <- eddy4R.base::def.pres.h2o.sat.temp.mag(temp = as.numeric(eddy4R.base::def.unit.conv(dataMetSub$TBOT$tempTripleMean, unitFrom = "C", unitTo = "K"))) #Calculate saturated water vapor pressure from temperature using Magnus equation
-attributes(presH2o)$unit = "Pa"
-attributes(presH2oSat)$unit = "Pa"
-dataMetSub$rH_003 <-  data.frame("startDateTime" = dataMetSub$Pa_MDS$startDateTime, "RHMean" = eddy4R.base::def.rh.pres.h2o.pres.sat.h2o(presH2o = presH2o, presH2oSat = presH2oSat), "RHFinalQF" = as.integer(dataMetSub$Pa_MDS$staPresFinalQF == 1|dataMetSub$TBOT$finalQF == 1|dataDfFlux$qfLE == 1)) #Calculation of RH from water vapor partial pressure and saturation pressure
-########################################################################################################################################################  
+
 dataMetSub$PAR <- dataMetSub$PAR[dataMetSub$PAR$verticalPosition == IdVer,]
 
 
@@ -592,8 +585,18 @@ timeRglrMet <- eddy4R.base::def.rglr(timeMeas = as.POSIXlt(dataMetSub[[x]]$start
 return(timeRglrMet$dataRglr)
 })#End lapply for time regularization of met data
 
+
 #Add names to list of Dataframes of regularized data
 names(dataMetSubRglr) <- names(dataMetSub)
+
+#######################################################################################################################################################
+#Calculate rH from IRGA rtioMoleDryH2o
+presH2o <- eddy4R.base::def.pres.h2o.rtio.mole.h2o.dry.pres(rtioMoleDryH2o = eddy4R.base::def.unit.conv(dataDfFlux$rtioMoleDryH2o, unitFrom = c("mmolH2o mol-1Dry"), unitTo = c("molH2o mol-1Dry")), pres = eddy4R.base::def.unit.conv(dataMetSubRglr$Pa_MDS$staPresMean, unitFrom = "kPa", unitTo = "Pa")) #Calculate water vapor pressure from dry mole fraction and static pressure
+presH2oSat <- eddy4R.base::def.pres.h2o.sat.temp.mag(temp = as.numeric(eddy4R.base::def.unit.conv(dataMetSubRglr$TBOT$tempTripleMean, unitFrom = "C", unitTo = "K"))) #Calculate saturated water vapor pressure from temperature using Magnus equation
+attributes(presH2o)$unit = "Pa"
+attributes(presH2oSat)$unit = "Pa"
+dataMetSubRglr$rH_003 <-  data.frame("startDateTime" = dataMetSubRglr$Pa_MDS$startDateTime, "RHMean" = eddy4R.base::def.rh.pres.h2o.pres.sat.h2o(presH2o = presH2o, presH2oSat = presH2oSat), "RHFinalQF" = as.integer(dataMetSubRglr$Pa_MDS$staPresFinalQF == 1|dataMetSubRglr$TBOT$finalQF == 1|dataDfFlux$qfLE == 1)) #Calculation of RH from water vapor partial pressure and saturation pressure
+########################################################################################################################################################  
 
 #############TODO##############
 #May need to remove wiht latest updates
