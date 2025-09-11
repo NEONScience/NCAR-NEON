@@ -63,8 +63,8 @@ buck = "neon-ncar"
 # Setting up environment
 Sys.setenv(
   #Set ENV variables
-"GCSPATHUPLDATM" = "NEON/atm/cdeps/v3",
-"GCSPATHUPLDEVAL" = "NEON/eval_files/v3",
+"GCSPATHUPLDATM" = "NEON/atm/cdeps/v4",
+"GCSPATHUPLDEVAL" = "NEON/eval_files/v4",
   "GCS_AUTH_FILE" = "/home/ddurden/eddy/tmp/neon_ncar_writer.json"
 )
 
@@ -87,7 +87,7 @@ tryCatch({googleCloudStorageR::gcs_auth(json_file=gcsCred)},
 ##!Workflow parameters
 ##############################################################################
 #WhOSBSich NEON site are we grabbing data from (4-letter ID)
-Site <- "YELL"
+Site <- "TOOL"
 #Which type of data package (expanded or basic)
 Pack <- "basic"
 #Time averaging period
@@ -96,7 +96,7 @@ TimeAgr <- 30
 dateBgn <- "2018-01-01"
 
 #End date for date grabbing
-dateEnd <- "2024-06-30"
+dateEnd <- "2024-12-31"
 
 # Run using less memory (but more time);
 # if lowmem == TRUE, how many months of data should stackEddy handle at a time?
@@ -502,7 +502,7 @@ base::file.remove(base::list.files(DirDnld, full.names = TRUE, recursive = TRUE)
 
 
 #List of DP numbers by eddy4R DP names
-listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001", "rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001", "TBOT" = "DP1.00003.001", "PAR" = "DP1.00024.001", "SW_DIR" = "DP1.00014.001", "WS_MDS" = "DP1.00001.001")
+listDpNum <- c( "PRECTmms_MDS" = "DP1.00006.001","rH" = "DP1.00098.001", "FLDS_MDS" = "DP1.00023.001", "Rg" = "DP1.00023.001", "Pa_MDS" = "DP1.00004.001", "TBOT" = "DP1.00003.001", "PAR" = "DP1.00024.001", "SW_DIR" = "DP1.00014.001", "WS_MDS" = "DP1.00001.001")
 
 #names for individual variables of interest
 varDp <- c("PRECTmms_MDS" = "SECPRE_30min", "rH" = "RH_30min", "FLDS_MDS" = "SLRNR_30min", "Rg" = "SLRNR_30min", "Pa_MDS" = "BP_30min", "TBOT" = "TAAT_30min", "PAR" = "PARPAR_30min", "SW_DIR" = "SRDDP_30min", "WS_MDS" = "twoDWSD_30min")  #was twoDWSD_30min #Currently using the relative humidity from the soil array, tower top was not reporting data at HARV during this time
@@ -519,9 +519,13 @@ subVarQf <- c("PRECTmms_MDS" = "secPrecipFinalQF", "rH" = "RHFinalQF", "FLDS_MDS
 
 ##Grab data for data products using Noble package
 dataMet <- lapply(listDpNum, function(x){
-  #x <- listDpNum[9]
-  try(expr = neonUtilities::loadByProduct(site = Site, dpID = x, 
-                                          startdate = as.character(dateBgn), 
+  #x <- listDpNum[2]
+  #If statement to grab secondary precip data at TOOK for the TOOL site
+  tmpSite <- ifelse(Site == "TOOL" & x == "DP1.00006.001", "TOOK", Site)
+  
+  
+  try(expr = neonUtilities::loadByProduct(site = tmpSite, dpID = x, 
+                                          startdate = as.character(dateBgn - 1), 
                                           enddate = as.character(dateEnd), 
                                           package = Pack, timeIndex = TimeAgr, 
                                           include.provisional = TRUE, 
@@ -529,14 +533,73 @@ dataMet <- lapply(listDpNum, function(x){
       silent = TRUE)
   })
 
+
+
+#Get site codes for sites with primary precip data
+sitePrecip <- neonUtilities::getProductInfo("DP1.00044.001")$siteCodes$siteCode
+
+
+#Test if site has primary precip
+if(Site %in% sitePrecip){
+
+
+P <- 
+  try(expr = neonUtilities::loadByProduct(site = Site, dpID = "DP1.00044.001", 
+                                          startdate = as.character(dateBgn - 1), 
+                                          enddate = as.character(dateEnd), 
+                                          package = Pack,  
+                                          include.provisional = TRUE,
+                                          check.size = FALSE), 
+      silent = TRUE)
+
+#P$WEIPRE_60min$precipBulk
+
+ tmpP <- P$WEIPRE_60min %>% 
+  dplyr::select(startDateTime, precipBulk, finalQF) %>%
+  # Duplicate each row and add a half-hour sequence
+  uncount(2) %>%
+  group_by(startDateTime) %>%
+  mutate(half_hour_seq = 1:n()) %>%
+  ungroup() %>%
+  # Adjust the timestamp for the new rows
+  mutate(
+    startDateTime_split = if_else(
+      half_hour_seq == 2,
+      startDateTime + lubridate::minutes(30),
+      startDateTime
+    ), precipBulk_split = precipBulk/2
+  ) %>%
+  select(startDateTime = startDateTime_split, priPrecipBulk = precipBulk_split, priPrecipFinalQF = finalQF)
+
+#Move output to dataMet list
+dataMet$PRECTmms_MDS$PRIPRE_30min <- as.data.frame(tmpP)
+
+
+#Remove tmpP
+rm(tmpP)
+
 #Check if primary precipitation exists at the site, if not change to secondary precip
-varDp["PRECTmms_MDS"] <- ifelse(test = any(grepl(pattern = varDp["PRECTmms_MDS"], x = names(dataMet[["PRECTmms_MDS"]]))), "SECPRE_30min", "PRIPRE_30min")
+varDp["PRECTmms_MDS"] <- "PRIPRE_30min"
+
+
+}#End primary precip if statement 
+
 
 #Failsafe if using primary precip
 subVar["PRECTmms_MDS"] <- ifelse(test = varDp["PRECTmms_MDS"] == "SECPRE_30min", "secPrecipBulk", "priPrecipBulk")
 subVarQf["PRECTmms_MDS"] <- ifelse(test = varDp["PRECTmms_MDS"] == "SECPRE_30min", "secPrecipFinalQF", "priPrecipFinalQF")
 
-
+#Check if secondary precip available and create finalQF 
+if(any(grepl(pattern = "SECPRE_30min", x = names(dataMet[["PRECTmms_MDS"]])))){
+  dataMet$PRECTmms_MDS$SECPRE_30min <- dataMet$PRECTmms_MDS$SECPRE_30min %>%
+    mutate(
+      secPrecipFinalQF = case_when(
+        secPrecipRangeQF == 1 | secPrecipSciRvwQF == 1 ~ 1, # If col_A or col_B is 1, set new_column to 1
+        is.na(secPrecipRangeQF) & is.na(secPrecipSciRvwQF) ~ NA_real_, # If both are NA, set new_column to NA
+        TRUE ~ 0 # Otherwise (neither is 1, and at least one is not NA), set new_column to 0
+      )
+    )
+}
 
 #Grab the actual data tables
 dataMetSub <- lapply(seq_along(varDp), function(x) {
@@ -565,14 +628,49 @@ dataMetSub$PAR <- dataMetSub$PAR[dataMetSub$PAR$verticalPosition == IdVer,]
 dataMetSub$WS_MDS_002 <- dataMetSub$WS_MDS[dataMetSub$WS_MDS$verticalPosition == sprintf("%03d",as.integer(IdVer) - 20),]
 dataMetSub$WS_MDS <- dataMetSub$WS_MDS[dataMetSub$WS_MDS$verticalPosition == sprintf("%03d",as.integer(IdVer) - 10),]
 
+#############################################################################################################################################
+#Dealing with precip redundant variables
+#############################################################################################################################################
+
 #logical statement looking for throughfall precip data
 if(any(grepl(pattern = "THRPRE_30min", x = names(dataMet[["PRECTmms_MDS"]])))){
   for(idx in unique(dataMet$PRECTmms_MDS$THRPRE_30min$horizontalPosition)){
     tmpVar <- paste0("PRECTmms_MDS_",idx)
-      dataMetSub[[tmpVar]] <- dataMet$PRECTmms_MDS$THRPRE_30min[dataMet$PRECTmms_MDS$THRPRE_30min$horizontalPosition == idx,]
+      tmpDf <- dataMet$PRECTmms_MDS$THRPRE_30min[dataMet$PRECTmms_MDS$THRPRE_30min$horizontalPosition == idx,]
+      
+      dataMetSub[[tmpVar]] <- tmpDf %>%
+        mutate(
+          TFPrecipFinalQF = case_when(
+            TFPrecipRangeQF == 1 | TFPrecipSciRvwQF == 1 ~ 1, # If col_A or col_B is 1, set new_column to 1
+            is.na(TFPrecipRangeQF) & is.na(TFPrecipSciRvwQF) ~ NA_real_, # If both are NA, set new_column to NA
+            TRUE ~ 0 # Otherwise (neither is 1, and at least one is not NA), set new_column to 0
+          )
+        )
+     
+      
   }#End for loop for Throughfall
 
+  #Remove tmpDf
+  rm(tmpDf) 
 }#End of logical statement looking for throughfall precip data
+
+
+#Check if both secondary and primary precip are available at the site
+if(any(grepl(pattern = "SECPRE_30min", x = names(dataMet[["PRECTmms_MDS"]]))) & varDp["PRECTmms_MDS"] == "PRIPRE_30min"){
+#Generate idx based on if Throughfall was also available
+tmpVarIdx <- max(as.numeric(stringr::str_extract(string = grep("PRECTmms_MDS", names(dataMetSub), value = TRUE), "[0-9][0-9][0-9]")), na.rm = TRUE) + 1
+
+#Check if no throughfall, then idx becomes 001
+tmpVarIdx <- ifelse(tmpVarIdx == -Inf, "002", tmpVarIdx)
+
+#Generate variable name for gap-filling
+tmpVar <-  paste0("PRECTmms_MDS_", stringr::str_pad(tmpVarIdx, width = 3, pad = "0", side = "left"))
+#Grab the data
+dataMetSub[[tmpVar]] <- dataMet$PRECTmms_MDS$SECPRE_30min
+}
+
+#############################################################################################################################################
+
 
 #time regularization of met data
 dataMetSubRglr <- lapply(names(dataMetSub), function(x){
@@ -637,6 +735,11 @@ dataGf$PRECTmms_MDS <- as.data.frame(sapply(tmpList, function(x){
   x[,grep("PrecipBulk", names(x))]
 }))
 
+qfGf$PRECTmms_MDS <- as.data.frame(sapply(tmpList, function(x){
+  #x <- tmpList[[1]] #for testing
+  #print(names(x))
+  x[,grep("FinalQF", names(x))]
+}))
 
 #Grab temp data streams
 dataGf$Tair <- data.frame("Tair"  = dataMetSubRglr$TBOT$tempTripleMean, "Tair_002"  = dataDfFlux$tempAirSoni, "Tair_003" = dataMetSubRglr$rH$tempRHMean)
@@ -693,7 +796,7 @@ qfGf$RadDif <- data.frame("RadDif" = dataMetSubRglr$SW_DIR$difRadFinalQF, "RadDi
 
 
 #Variables to apply quality flag removal to main variable
-nameQfVar <- names(dataGf)[!names(dataGf) %in% "PRECTmms_MDS"]
+nameQfVar <- names(dataGf)#[!names(dataGf) %in% "PRECTmms_MDS"]
 
 #Remove bad quality flags in main data stream
 lapply(nameQfVar, function(x){
