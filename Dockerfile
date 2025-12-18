@@ -1,7 +1,7 @@
 # start with the ropensci image including debian:testing, r-base, rocker/rstudio, rocker/hadleyverse
 # https://hub.docker.com/r/rocker/ropensci/
 
-FROM quay.io/battelleecology/rstudio:4.0.5
+FROM rocker/rstudio:4.0.5
 #
 
 #LABEL org.label-schema.license="AGPL-3.0" \
