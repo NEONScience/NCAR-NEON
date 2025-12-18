@@ -2,8 +2,6 @@ name: Docker Publish
 
 on:
   push:
-    branches:
-      - github-workflow
     tags:
       - v*
 
